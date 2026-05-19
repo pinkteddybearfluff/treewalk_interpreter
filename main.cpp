@@ -7,16 +7,16 @@
 #include "lexer.h"
 
 //TODO: 1) add control flow
-//TODO: 4) add parser helper utility functions: 1) match(Token); 2) consume(Token); 3) check(Token); 4) expect(Token); 5) assert(Token);
+//TODO: 2) add parser helper utility functions: 1) match(Token); 2) consume(Token); 3) check(Token); 4) expect(Token); 5) assert(Token);
 
 int main()
 {
     try
     {
         std::map<string, int> env;
-        // env["x"] = -4;
+        env["a"] = -4;
         std::string input =
-            "if(a>1) a=a+6;";
+            "if(a==-4)b=3;";
         std::istringstream is(input);
         TokenStream ts{is};
         unique_ptr<ExpressionNode> node;
@@ -31,13 +31,13 @@ int main()
             t = ts.peek();
             result = node->evaluateNode(env);
             std::cout << "Result : " << result << std::endl;
-            // node->debugPrint(1);
+
+            if constexpr (DEBUG_AST) node->debugPrint(1);
 
             if (t.type == TokenType::End)
             {
                 break;
             }
-            // node->debugPrint(0);
         }
         for (const auto& var : env)
         {

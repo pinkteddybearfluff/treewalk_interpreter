@@ -6,9 +6,8 @@
 #include <map>
 
 #include "lexer.h"
-//UnaryNode
-//NumberNode
-//BinaryNode
+
+constexpr bool DEBUG_AST = false;
 
 using std::unique_ptr;
 using std::make_unique;

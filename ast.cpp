@@ -26,7 +26,7 @@ int UnaryNode::evaluateNode(map<string, int>& env) const
 void UnaryNode::debugPrint(int indentLevel) const
 {
     cout << "Unary(" << getSymbolForOp(op.type) << ")\n";
-    for (int i = 0; i < IndentSize * indentLevel; ++i)cout << " ";
+    cout << string(IndentSize * indentLevel, ' ');
     child->debugPrint(indentLevel + 1);
 }
 
@@ -64,9 +64,9 @@ int BinaryNode::evaluateNode(map<string, int>& env) const
 void BinaryNode::debugPrint(int indentLevel) const
 {
     cout << "Binary(" << getSymbolForOp(op.type) << ")\n";
-    for (int i = 0; i < IndentSize * indentLevel; ++i)cout << " ";
+    cout << string(IndentSize * indentLevel, ' ');
     left->debugPrint(indentLevel + 1);
-    for (int i = 0; i < IndentSize * indentLevel; ++i)cout << " ";
+    cout << string(IndentSize * indentLevel, ' ');
     right->debugPrint(indentLevel + 1);
 }
 
@@ -93,9 +93,9 @@ int AssignmentNode::evaluateNode(map<string, int>& env) const
 void AssignmentNode::debugPrint(int indentLevel) const
 {
     cout << "Assignment(=)\n";
-    for (int i = 0; i < IndentSize * indentLevel; ++i)cout << " ";
+    cout << string(IndentSize * indentLevel, ' ');
     lvalue->debugPrint(indentLevel + 1);
-    for (int i = 0; i < IndentSize * indentLevel; ++i)cout << " ";
+    cout << string(IndentSize * indentLevel, ' ');
     rvalue->debugPrint(indentLevel + 1);
 }
 
@@ -111,9 +111,9 @@ int IfNode::evaluateNode(map<string, int>& env) const
 void IfNode::debugPrint(int indentLevel) const
 {
     cout << "If\n";
-    for (int i = 0; i < IndentSize * indentLevel; ++i)cout << " ";
+    cout << string(IndentSize * indentLevel, ' ');
     condition->debugPrint(indentLevel + 1);
-    for (int i = 0; i < IndentSize * indentLevel; ++i)cout << " ";
+    cout << string(IndentSize * indentLevel, ' ');
     statement->debugPrint(indentLevel + 1);
 }
 
@@ -156,7 +156,7 @@ void FunctionCallNode::debugPrint(int indentLevel) const
     cout << "Function(" << identifierName << ")\n";
     for (const auto& argument : arguments)
     {
-        for (int i = 0; i < IndentSize * indentLevel; ++i)cout << " ";
+        cout << string(IndentSize * indentLevel, ' ');
         argument->debugPrint(indentLevel + 1);
     }
 }

@@ -5,6 +5,11 @@
 #include "lexer.h"
 #include <string_view>
 
+
+inline int parserDepth = 0;
+constexpr bool DEBUG_PARSER = true;
+
+
 void debugConsume(std::string_view parserName, const Token& t);
 void debugEnter(std::string_view parserName);
 void debugPeek(std::string_view parserName, const Token& t);
