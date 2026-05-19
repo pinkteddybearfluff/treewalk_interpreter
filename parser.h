@@ -3,6 +3,14 @@
 
 #include "ast.h"
 #include "lexer.h"
+#include <string_view>
+
+void debugConsume(std::string_view parserName, const Token& t);
+void debugEnter(std::string_view parserName);
+void debugPeek(std::string_view parserName, const Token& t);
+void debugNextPeek(std::string_view parserName, const Token& t);
+void debugExit(std::string_view parserName);
+
 
 unique_ptr<ExpressionNode> parseStatement(TokenStream& ts);
 unique_ptr<ExpressionNode> parseEquality(TokenStream& ts);

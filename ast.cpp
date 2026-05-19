@@ -4,17 +4,17 @@
 
 using std::cout;
 
+const int IndentSize = 2;
+
 int NumberNode::evaluateNode(map<string, int>& env) const
 {
     return value;
 }
 
-// void NumberNode::debugPrint(int indentLevel) const
-// {
-//     for (int i = 0; i < indentLevel * 2; ++i) cout << " ";
-//     for (int i = 0; i < indentLevel * 2; ++i) cout << " ";
-//     cout << value << '\n';
-// }
+void NumberNode::debugPrint(int indentLevel) const
+{
+    cout << "Number(" << value << ")\n";
+}
 
 int UnaryNode::evaluateNode(map<string, int>& env) const
 {
@@ -23,14 +23,12 @@ int UnaryNode::evaluateNode(map<string, int>& env) const
     return value;
 }
 
-// void UnaryNode::debugPrint(int indentLevel) const
-// {
-//     for (int i = 0; i < indentLevel * 2; ++i) cout << " ";
-//     for (int i = 0; i < indentLevel * 2; ++i) cout << " ";
-//     cout << op << '\n';
-//     for (int i = 0; i < indentLevel * 2; ++i) cout << " ";
-//     child->debugPrint(indentLevel + 1);
-// }
+void UnaryNode::debugPrint(int indentLevel) const
+{
+    cout << "Unary(" << getSymbolForOp(op.type) << ")\n";
+    for (int i = 0; i < IndentSize * indentLevel; ++i)cout << " ";
+    child->debugPrint(indentLevel + 1);
+}
 
 int BinaryNode::evaluateNode(map<string, int>& env) const
 {
@@ -63,16 +61,14 @@ int BinaryNode::evaluateNode(map<string, int>& env) const
     }
 }
 
-// void BinaryNode::debugPrint(int indentLevel) const
-// {
-// for (int i = 0; i < indentLevel * 2; ++i) cout << " ";
-// for (int i = 0; i < indentLevel * 2; ++i) cout << " ";
-// cout << op << '\n';
-// for (int i = 0; i < indentLevel * 2; ++i) cout << " ";
-// left->debugPrint(indentLevel + 1);
-// for (int i = 0; i < indentLevel * 2; ++i) cout << " ";
-// right->debugPrint(indentLevel + 1);
-// }
+void BinaryNode::debugPrint(int indentLevel) const
+{
+    cout << "Binary(" << getSymbolForOp(op.type) << ")\n";
+    for (int i = 0; i < IndentSize * indentLevel; ++i)cout << " ";
+    left->debugPrint(indentLevel + 1);
+    for (int i = 0; i < IndentSize * indentLevel; ++i)cout << " ";
+    right->debugPrint(indentLevel + 1);
+}
 
 int VariableNode::evaluateNode(map<string, int>& env) const
 {
@@ -82,11 +78,43 @@ int VariableNode::evaluateNode(map<string, int>& env) const
     return iter->second;
 }
 
+void VariableNode::debugPrint(int i) const
+{
+    cout << "Variable(" << identifierName << ")\n";
+}
+
 int AssignmentNode::evaluateNode(map<string, int>& env) const
 {
     int right = rvalue->evaluateNode(env);
     env[lvalue->getIdentifierName()] = right;
     return right;
+}
+
+void AssignmentNode::debugPrint(int indentLevel) const
+{
+    cout << "Assignment(=)\n";
+    for (int i = 0; i < IndentSize * indentLevel; ++i)cout << " ";
+    lvalue->debugPrint(indentLevel + 1);
+    for (int i = 0; i < IndentSize * indentLevel; ++i)cout << " ";
+    rvalue->debugPrint(indentLevel + 1);
+}
+
+int IfNode::evaluateNode(map<string, int>& env) const
+{
+    if (condition->evaluateNode(env))
+    {
+        return statement->evaluateNode(env);
+    }
+    return 0;
+}
+
+void IfNode::debugPrint(int indentLevel) const
+{
+    cout << "If\n";
+    for (int i = 0; i < IndentSize * indentLevel; ++i)cout << " ";
+    condition->debugPrint(indentLevel + 1);
+    for (int i = 0; i < IndentSize * indentLevel; ++i)cout << " ";
+    statement->debugPrint(indentLevel + 1);
 }
 
 int FunctionCallNode::evaluateNode(map<string, int>& env) const
@@ -120,6 +148,16 @@ int FunctionCallNode::evaluateNode(map<string, int>& env) const
             return avg;
         }
         validateArity(1, arguments.size(), "avg");
+    }
+}
+
+void FunctionCallNode::debugPrint(int indentLevel) const
+{
+    cout << "Function(" << identifierName << ")\n";
+    for (const auto& argument : arguments)
+    {
+        for (int i = 0; i < IndentSize * indentLevel; ++i)cout << " ";
+        argument->debugPrint(indentLevel + 1);
     }
 }
 

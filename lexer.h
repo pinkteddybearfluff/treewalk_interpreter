@@ -29,6 +29,7 @@ enum class TokenType
     Identifier,
     Assign,
     Semicolon,
+    If,
     End,
 };
 
@@ -92,5 +93,6 @@ private:
 };
 
 string getStringForType(TokenType type);
+string getSymbolForOp(TokenType op);
 
 #endif //INTERPRETER_LEXER_H

@@ -19,7 +19,23 @@ class ExpressionNode
 {
 public:
     virtual int evaluateNode(map<string, int>& env) const =0;
+    virtual void debugPrint(int indentLevel) const =0;
     virtual ~ExpressionNode() = default;
+};
+
+class IfNode : public ExpressionNode
+{
+public:
+    IfNode(unique_ptr<ExpressionNode> c, unique_ptr<ExpressionNode> thenBranch) : condition{std::move(c)},
+        statement{std::move(thenBranch)}
+    {
+    };
+    int evaluateNode(map<string, int>& env) const override;
+    void debugPrint(int indentLevel) const override;
+
+private:
+    unique_ptr<ExpressionNode> condition;
+    unique_ptr<ExpressionNode> statement;
 };
 
 class UnaryNode : public ExpressionNode
@@ -29,6 +45,7 @@ public:
     {
     };
     int evaluateNode(map<string, int>& env) const override;
+    void debugPrint(int indentLevel) const override;
 
 private:
     Token op;
@@ -42,6 +59,7 @@ public:
     {
     };
     int evaluateNode(map<string, int>& env) const override;
+    void debugPrint(int indentLevel) const override;
 
 private:
     int value;
@@ -55,6 +73,7 @@ public:
     {
     };
     int evaluateNode(map<string, int>& env) const override;
+    void debugPrint(int indentLevel) const override;
 
 private:
     Token op;
@@ -70,6 +89,7 @@ public:
     };
     int evaluateNode(map<string, int>& env) const override;
     const string& getIdentifierName() const { return identifierName; };
+    void debugPrint(int indentLevel) const override;
 
 private:
     string identifierName;
@@ -83,6 +103,7 @@ public:
     {
     };
     int evaluateNode(map<string, int>& env) const override;
+    void debugPrint(int indentLevel) const override;
 
 private:
     unique_ptr<VariableNode> lvalue;
@@ -101,6 +122,7 @@ public:
     {
     };
     int evaluateNode(map<string, int>& env) const override;
+    void debugPrint(int indentLevel) const override;
 
 private
 :

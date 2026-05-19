@@ -25,11 +25,8 @@ string TokenStream::getVarName()
 
 Token TokenStream::getNextToken()
 {
-    // std::cout << "Is buffer.empty in getNext " << bufferTokens.isEmpty() << std::endl;
     if (bufferCount == 2)
     {
-        // std::cout << "[BUFFER -> CONSUMED] " << getStringForType(bufferedToken.type) << " Name: " << bufferedToken.name
-        //     << " Value: " << bufferedToken.value << std::endl;
         --bufferCount;
         Token t = buffer[0];
         buffer[0] = buffer[1];
@@ -45,7 +42,6 @@ Token TokenStream::getNextToken()
 
 Token TokenStream::readFromStream()
 {
-    // std::cout << "readFromStream called" << std::endl;
     char ch;
     is >> ch;
     if (isdigit(ch))
@@ -53,7 +49,6 @@ Token TokenStream::readFromStream()
         is.putback(ch);
         int value;
         is >> value;
-        // std::cout << "[STREAM -> NUMBER] " << " Value: " << value << std::endl;
 
         return Token{TokenType::Number, value};
     }
@@ -61,9 +56,6 @@ Token TokenStream::readFromStream()
     {
         if (is.eof())
         {
-            // std::cout << "[STREAM -> EOF] " <<
-            //     std::endl;
-
             return Token{TokenType::End};
         }
     }
@@ -71,7 +63,7 @@ Token TokenStream::readFromStream()
     {
         is.putback(ch);
         string name = getVarName();
-        // std::cout << "[STREAM -> CHAR] " << " Name: " << name << std::endl;
+        if (name == "if") return Token{TokenType::If};
 
         return Token{TokenType::Identifier, 0, name};
     }
@@ -85,12 +77,10 @@ Token TokenStream::peek()
     {
         buffer[0] = readFromStream();
         ++bufferCount;
-        // std::cout << "Buffer: " << getStringForType(buffer[0].type) << " Count 0" << std::endl;
         return buffer[0];
     }
     if (bufferCount == 1)
     {
-        // std::cout << "Buffer: " << getStringForType(buffer[0].type) << " Count 1" << std::endl;
         return buffer[0];
     }
     if (bufferCount == 2)
@@ -142,7 +132,6 @@ Token TokenStream::charToToken(char ch)
             {
                 char ch3;
                 is >> ch3;
-                std::cout << "Equality spotted" << std::endl;
                 return Token{TokenType::Equal};
             }
             return Token{TokenType::Assign};
@@ -155,7 +144,6 @@ Token TokenStream::charToToken(char ch)
             {
                 char ch3;
                 is >> ch3;
-                std::cout << "LessEqual spotted" << std::endl;
                 return Token{TokenType::LessEqual};
             }
             return Token{TokenType::Less};
@@ -163,13 +151,11 @@ Token TokenStream::charToToken(char ch)
     case '>':
         {
             int ch2 = is.peek();
-            // std::cout << getStringForType(t.type) << std::endl;
 
             if (static_cast<char>(ch2) == '=')
             {
                 char ch3;
                 is >> ch3;
-                std::cout << "GreaterEqual spotted" << std::endl;
                 return Token{TokenType::GreaterEqual};
             }
             return Token{TokenType::Greater};
@@ -181,12 +167,10 @@ Token TokenStream::charToToken(char ch)
             {
                 char ch3;
                 is >> ch3;
-                std::cout << "Not Equal spotted" << std::endl;
                 return Token{TokenType::NotEqual};
             }
         }
     default:
-        std::cout << "unknown token in question" << ch << std::endl;
         throw std::runtime_error("Unknown token!");
     }
 }
@@ -232,5 +216,37 @@ string getStringForType(TokenType type)
         return "Less";
     case TokenType::LessEqual:
         return "LessEqual";
+    case TokenType::If:
+        return "If";
+    }
+}
+
+
+string getSymbolForOp(TokenType op)
+{
+    switch (op)
+    {
+    case TokenType::Equal:
+        return "==";
+    case TokenType::NotEqual:
+        return "!=";
+    case TokenType::Greater:
+        return ">";
+    case TokenType::GreaterEqual:
+        return ">=";
+    case TokenType::Less:
+        return "<";
+    case TokenType::LessEqual:
+        return "<=";
+    case TokenType::Plus:
+        return "+";
+    case TokenType::Minus:
+        return "-";
+    case TokenType::Multiply:
+        return "*";
+    case TokenType::Divide:
+        return "/";
+    case TokenType::Assign:
+        return "=";
     }
 }
