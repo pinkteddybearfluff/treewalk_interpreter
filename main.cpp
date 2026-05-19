@@ -6,18 +6,23 @@
 #include "ast.h"
 #include "lexer.h"
 
-//TODO: 1) add better error messages and more error coverage for functions and new error
-//TODO: 2) add functions
-//TODO: 3) add ==, !=, >, <
-//TODO: 4) add control flow
+//TODO: 1) add control flow
+//TODO: 2) pretty print for nodes and tree
+//TODO: 3) add helper functions such as match(Equal) and expect(CloseParen)
 
 int main()
 {
     try
     {
         std::map<string, int> env;
-        env["x"] = -4;
-        std::string input = "avg(5,4,5;";
+        // env["x"] = -4;
+        std::string input = "a = 3;"
+            "b = 6;"
+            "max1 = a*(a>b)+b*(a<b);"
+            "min1= a*(a<b)+ b*(b<a);"
+            "max2 = max(a,b);"
+            "min2 = min(a,b);"
+            "avg = avg(a,b,max1,max2,min1,min2);";
         std::istringstream is(input);
         TokenStream ts{is};
         unique_ptr<ExpressionNode> node;
@@ -41,7 +46,10 @@ int main()
             }
             // node->debugPrint(0);
         }
-        std::cout << env["x"];
+        for (const auto& var : env)
+        {
+            std::cout << var.first << " = " << var.second << '\n';
+        }
 
         return 0;
     }

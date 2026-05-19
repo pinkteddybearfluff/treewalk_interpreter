@@ -47,6 +47,18 @@ int BinaryNode::evaluateNode(map<string, int>& env) const
         return lval * rval;
     case TokenType::Divide:
         return lval / rval;
+    case TokenType::Greater:
+        return lval > rval;
+    case TokenType::GreaterEqual:
+        return lval >= rval;
+    case TokenType::LessEqual:
+        return lval <= rval;
+    case TokenType::Less:
+        return lval < rval;
+    case TokenType::Equal:
+        return lval == rval;
+    case TokenType::NotEqual:
+        return lval != rval;
     default: throw std::runtime_error("Unknown operator");
     }
 }
@@ -99,9 +111,15 @@ int FunctionCallNode::evaluateNode(map<string, int>& env) const
     }
     if (identifierName == "avg")
     {
-        if (arguments.size() == 3)
-            return arguments[1]->evaluateNode(env);
-        validateArity(3, arguments.size(), "avg");
+        if (arguments.size() != 0)
+        {
+            int avg = 0;
+            for (int i = 0; i < arguments.size(); ++i)
+                avg += arguments[i]->evaluateNode(env);
+            avg = avg / arguments.size();
+            return avg;
+        }
+        validateArity(1, arguments.size(), "avg");
     }
 }
 

@@ -13,6 +13,12 @@ using std::vector;
 enum class TokenType
 {
     Number,
+    Equal,
+    NotEqual,
+    Greater,
+    GreaterEqual,
+    Less,
+    LessEqual,
     Plus,
     Minus,
     Multiply,

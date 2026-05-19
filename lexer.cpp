@@ -45,6 +45,7 @@ Token TokenStream::getNextToken()
 
 Token TokenStream::readFromStream()
 {
+    // std::cout << "readFromStream called" << std::endl;
     char ch;
     is >> ch;
     if (isdigit(ch))
@@ -84,10 +85,12 @@ Token TokenStream::peek()
     {
         buffer[0] = readFromStream();
         ++bufferCount;
+        // std::cout << "Buffer: " << getStringForType(buffer[0].type) << " Count 0" << std::endl;
         return buffer[0];
     }
     if (bufferCount == 1)
     {
+        // std::cout << "Buffer: " << getStringForType(buffer[0].type) << " Count 1" << std::endl;
         return buffer[0];
     }
     if (bufferCount == 2)
@@ -133,9 +136,57 @@ Token TokenStream::charToToken(char ch)
     case ',':
         return Token{TokenType::Comma};
     case '=':
-        return Token{TokenType::Assign};
+        {
+            int ch2 = is.peek();
+            if (static_cast<char>(ch2) == '=')
+            {
+                char ch3;
+                is >> ch3;
+                std::cout << "Equality spotted" << std::endl;
+                return Token{TokenType::Equal};
+            }
+            return Token{TokenType::Assign};
+        }
+    case '<':
+        {
+            int ch2 = is.peek();
+            // std::cout << getStringForType(t.type) << std::endl;
+            if (static_cast<char>(ch2) == '=')
+            {
+                char ch3;
+                is >> ch3;
+                std::cout << "LessEqual spotted" << std::endl;
+                return Token{TokenType::LessEqual};
+            }
+            return Token{TokenType::Less};
+        }
+    case '>':
+        {
+            int ch2 = is.peek();
+            // std::cout << getStringForType(t.type) << std::endl;
+
+            if (static_cast<char>(ch2) == '=')
+            {
+                char ch3;
+                is >> ch3;
+                std::cout << "GreaterEqual spotted" << std::endl;
+                return Token{TokenType::GreaterEqual};
+            }
+            return Token{TokenType::Greater};
+        }
+    case '!':
+        {
+            int ch2 = is.peek();
+            if (static_cast<char>(ch2) == '=')
+            {
+                char ch3;
+                is >> ch3;
+                std::cout << "Not Equal spotted" << std::endl;
+                return Token{TokenType::NotEqual};
+            }
+        }
     default:
-        std::cout << ch << std::endl;
+        std::cout << "unknown token in question" << ch << std::endl;
         throw std::runtime_error("Unknown token!");
     }
 }
@@ -169,5 +220,17 @@ string getStringForType(TokenType type)
         return "EOF";
     case TokenType::Comma:
         return "COMMA";
+    case TokenType::Equal:
+        return "Equal";
+    case TokenType::NotEqual:
+        return "NotEqual";
+    case TokenType::Greater:
+        return "Greater";
+    case TokenType::GreaterEqual:
+        return "GreaterEqual";
+    case TokenType::Less:
+        return "Less";
+    case TokenType::LessEqual:
+        return "LessEqual";
     }
 }
