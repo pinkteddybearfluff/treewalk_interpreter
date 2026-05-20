@@ -1,6 +1,14 @@
-//Expression
-//Term
-//Factor
+//Function Correct Cases:   1) func();
+//                          2) func(Exp);
+//                          3) func(Exp, Exp, ..., Exp);
+
+// Function Error Cases:    1) func(Exp Exp);  ----> Missing Comma between Expression
+//                          2) func(Exp, ,);   ----> Missing Expression before Commas
+//                          3) func(,);        ----> Missing Expression before Comma
+//                          4) func(Exp;       ----> Missing CloseParen before SemiColon
+//                          5) func(;          ----> Missing CloseParen before SemiColon
+//                          6) func(Exp, )     ----> Missing Expression before CloseParen
+
 
 #include <iostream>
 #include "parser.h"
@@ -8,6 +16,35 @@
 
 using std::cin;
 using std::cout;
+
+// check: Is the next token of this type?
+// match: If next token matches, consume it and return true.
+// consume: Consume token of this type or throw error.
+
+bool check(TokenType tkType, TokenStream& ts)
+{
+    Token t = ts.peek();
+    if constexpr (DEBUG_PARSER)
+        debugPeek("check", t);
+    return t.type == tkType;
+}
+
+bool match(TokenType tkType, TokenStream& ts)
+{
+    if (check(tkType, ts))
+    {
+        ts.getNextToken();
+        return true;
+    }
+    return false;
+}
+
+Token consume(TokenType tkType, string msg, TokenStream& ts)
+{
+    if (!check(tkType, ts))
+        throw std::runtime_error(msg);
+    return ts.getNextToken();
+}
 
 void debugConsume(std::string_view parserName, const Token& t)
 {
@@ -42,22 +79,19 @@ unique_ptr<ExpressionNode> parseStatement(TokenStream& ts)
     string parserName = "parseStatement";
     if constexpr (DEBUG_PARSER) debugEnter(parserName);
 
-    Token t1 = ts.peek();
-    if constexpr (DEBUG_PARSER) debugPeek(parserName, t1);
-    Token t2 = ts.peekNext();
-    if constexpr (DEBUG_PARSER) debugNextPeek(parserName, t2);
+    // Token t1 = ts.peek();
+    // if constexpr (DEBUG_PARSER) debugPeek(parserName, t1);
 
-    if (t1.type == TokenType::Assign)
+    if (check(TokenType::Assign, ts))
         throw std::runtime_error("'=': expected an l-value for left operand");
-    if (t1.type != TokenType::Identifier && t2.type == TokenType::Assign)
-        throw std::runtime_error("'=': left operand must be l-value");
-    if (t1.type == TokenType::Identifier && t2.type == TokenType::Assign)
+
+    if (ts.peekNext().type == TokenType::Assign)
     {
-        unique_ptr<VariableNode> lvalue = make_unique<VariableNode>(t1.name);
-        t1 = ts.getNextToken();
-        if constexpr (DEBUG_PARSER) debugConsume(parserName, t1);
-        t2 = ts.getNextToken();
-        if constexpr (DEBUG_PARSER) debugConsume(parserName, t2);
+        Token t = consume(TokenType::Identifier, "'=': left operand must be l-value", ts);
+
+        unique_ptr<VariableNode> lvalue = make_unique<VariableNode>(t.name);
+
+        match(TokenType::Assign, ts);
 
         unique_ptr<ExpressionNode> rvalue = parseEquality(ts);
 
@@ -202,92 +236,60 @@ unique_ptr<ExpressionNode> parseFactor(TokenStream& ts)
     if (t.type == TokenType::OpenParen)
     {
         unique_ptr<ExpressionNode> node = parseEquality(ts);
-        t = ts.getNextToken();
-        if constexpr (DEBUG_PARSER) debugConsume(parserName, t);
 
-        if (t.type != TokenType::CloseParen)
-        {
-            cout << getStringForType(t.type) << std::endl;
-            throw std::runtime_error("missing ')'");
-        }
+        consume(TokenType::CloseParen, "missing ')'", ts);
+
         if constexpr (DEBUG_PARSER) debugExit(parserName);
         return node;
     }
     if (t.type == TokenType::Identifier)
     {
         string name = t.name;
-        t = ts.peek();
-        if constexpr (DEBUG_PARSER) debugPeek(parserName, t);
 
-        if (t.type == TokenType::OpenParen)
+        if (match(TokenType::OpenParen, ts))
         {
-            t = ts.getNextToken();
-            if constexpr (DEBUG_PARSER) debugConsume(parserName, t);
-            t = ts.peek();
-            if constexpr (DEBUG_PARSER) debugPeek(parserName, t);
-
-            if (t.type == TokenType::CloseParen)
+            // Correct Case 1: func();
+            if (match(TokenType::CloseParen, ts))
             {
-                t = ts.getNextToken();
-                if constexpr (DEBUG_PARSER) debugConsume(parserName, t);
-
                 if constexpr (DEBUG_PARSER) debugExit(parserName);
                 return make_unique<FunctionCallNode>(name);
             }
-            if (t.type == TokenType::Semicolon)
-            {
-                throw std::runtime_error("expected ')' before ';' token");
-            }
+            // Error Case 5 : func(;
+            if (match(TokenType::Semicolon, ts)) throw std::runtime_error("expected ')' before ';'");
 
             vector<unique_ptr<ExpressionNode>> argumentNodes;
             while (true)
             {
-                t = ts.peek();
-                if constexpr (DEBUG_PARSER) debugPeek(parserName, t);
-
-                // ERROR: func(Expression , ,);
-                if (t.type == TokenType::Comma)
+                // Error Case 2 and 3: func(Exp , ,); and func(, Exp);
+                if (match(TokenType::Comma, ts))
                     throw std::runtime_error("expected expression before ',' token");
 
                 argumentNodes.push_back(parseExpression(ts));
-                t = ts.peek();
-                if constexpr (DEBUG_PARSER) debugPeek(parserName, t);
 
-                if (t.type != TokenType::Comma && t.type != TokenType::CloseParen)
+                // Correct Case 2: func(Exp, Exp);
+                if (match(TokenType::CloseParen, ts))
                 {
-                    // ERROR: func(Expression;
-                    if (t.type == TokenType::Semicolon)
-                        throw std::runtime_error("expected ')' before ';' token in function");
-                    else
-                        // ERROR: func(Expression Expression)
-                        throw std::runtime_error("expected ',' before expression");
+                    if constexpr (DEBUG_LEXER) debugExit(parserName);
+                    return make_unique<FunctionCallNode>(name, std::move(argumentNodes));
                 }
-                if (t.type == TokenType::Comma)
+
+                // Error Case 4: func(Exp, Exp;
+                if (match(TokenType::Semicolon, ts)) throw std::runtime_error("expected ')' before ';'");
+
+                if (match(TokenType::Comma, ts))
                 {
-                    t = ts.getNextToken();
-                    if constexpr (DEBUG_PARSER) debugConsume(parserName, t);
-                }
-                else break;
-                t = ts.peek();
-                if constexpr (DEBUG_PARSER) debugPeek(parserName, t);
+                    // Error Case 6: func(Exp, );
+                    if (match(TokenType::CloseParen, ts))
+                        throw std::runtime_error("expected expression before ')'");
+                    // Correct Case 3; func(Exp, Exp, ...);
+                    continue;
+                };
 
-                if (t.type == TokenType::CloseParen)
-                    // ERROR: func(Expression, )
-                    throw std::runtime_error("expected expression before ')' token");
+                // Error Case 1: func(Exp Exp);
+                throw std::runtime_error("expected ',' before expression");
             }
-
-            t = ts.peek();
-            if constexpr (DEBUG_PARSER) debugPeek(parserName, t);
-            if (t.type == TokenType::CloseParen)
-            {
-                t = ts.getNextToken();
-                if constexpr (DEBUG_PARSER) debugConsume(parserName, t);
-                return make_unique<FunctionCallNode>(name, std::move(argumentNodes));
-            }
-            else
-            // Bracket not closed before SEMICOLON
-                throw std::runtime_error("expected ')' before ';' token");
         }
+
         if constexpr (DEBUG_PARSER) debugExit(parserName);
         return make_unique<VariableNode>(name);
     }

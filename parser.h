@@ -7,7 +7,12 @@
 
 
 inline int parserDepth = 0;
-constexpr bool DEBUG_PARSER = true;
+constexpr bool DEBUG_PARSER = false;
+
+
+bool match(TokenType tkType, TokenStream& ts);
+bool check(TokenType tkType, TokenStream& ts);
+Token consume(TokenType tkType, string msg, TokenStream& ts);
 
 
 void debugConsume(std::string_view parserName, const Token& t);

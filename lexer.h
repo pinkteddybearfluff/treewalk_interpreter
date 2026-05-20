@@ -7,6 +7,9 @@
 
 using std::string;
 using std::vector;
+using std::cout;
+
+constexpr bool DEBUG_LEXER = false;
 
 //TODO: IMPLEMENT peekNext
 
@@ -40,37 +43,6 @@ struct Token
     std::string name;
 };
 
-class BufferStack
-{
-public:
-    void push(const Token& t)
-    {
-        buffer.push_back(t);
-    }
-
-    Token back()
-    {
-        return buffer.back();
-    }
-
-    Token pop()
-    {
-        if (buffer.empty())
-            throw std::runtime_error("Empty buffer");
-
-        Token t = buffer.back();
-        buffer.pop_back();
-        return t;
-    }
-
-    bool isEmpty() const
-    {
-        return buffer.empty();
-    }
-
-private:
-    std::vector<Token> buffer;
-};
 
 class TokenStream
 {
@@ -81,6 +53,7 @@ public:
     Token getNextToken();
     Token peek();
     Token peekNext();
+    void debugPrintBuffer();
 
 private:
     std::istream& is;

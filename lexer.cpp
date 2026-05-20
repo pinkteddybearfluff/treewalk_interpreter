@@ -73,35 +73,60 @@ Token TokenStream::readFromStream()
 
 Token TokenStream::peek()
 {
+    if constexpr (DEBUG_LEXER) cout << "Enter peek\n";
     if (bufferCount == 0)
     {
+        if constexpr (DEBUG_LEXER) debugPrintBuffer();
         buffer[0] = readFromStream();
         ++bufferCount;
+        if constexpr (DEBUG_LEXER)
+        {
+            debugPrintBuffer();
+            cout << "Exit peek" << std::endl;
+        }
         return buffer[0];
     }
     if (bufferCount == 1)
     {
+        if constexpr (DEBUG_LEXER)
+        {
+            debugPrintBuffer();
+            cout << "Exit peek" << std::endl;
+        }
         return buffer[0];
     }
     if (bufferCount == 2)
     {
-        return buffer[1];
+        if constexpr (DEBUG_LEXER)
+        {
+            debugPrintBuffer();
+            cout << "Exit peek" << std::endl;
+        }
+        return buffer[0];
     }
 }
 
 Token TokenStream::peekNext()
 {
+    if constexpr (DEBUG_LEXER) cout << "Enter peekNext\n";
+
     if (bufferCount == 0)
     {
+        if constexpr (DEBUG_LEXER) debugPrintBuffer();
         buffer[0] = readFromStream();
         buffer[1] = readFromStream();
         bufferCount = 2;
+        if constexpr (DEBUG_LEXER) debugPrintBuffer();
     }
     if (bufferCount == 1)
     {
+        if constexpr (DEBUG_LEXER) debugPrintBuffer();
         buffer[1] = readFromStream();
         ++bufferCount;
+        if constexpr (DEBUG_LEXER) debugPrintBuffer();
     }
+
+    if constexpr (DEBUG_LEXER) cout << "Exit peekNext\n";
     return buffer[1];
 }
 
@@ -175,6 +200,22 @@ Token TokenStream::charToToken(char ch)
     }
 }
 
+
+void TokenStream::debugPrintBuffer()
+{
+    cout << "Buffer count = " << bufferCount << '\n';
+    if (bufferCount == 0) return;
+    if (bufferCount == 1)
+    {
+        cout << "[Buffer: 0] = [" << getStringForType(buffer[0].type) << "]" << std::endl;
+    }
+    if (bufferCount == 2)
+    {
+        cout << "[Buffer: 0] = [" << getStringForType(buffer[0].type) << "]\n";
+
+        cout << "[Buffer: 1] = [" << getStringForType(buffer[1].type) << "]" << std::endl;
+    }
+}
 
 string getStringForType(TokenType type)
 {
