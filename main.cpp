@@ -1,47 +1,48 @@
 #include <iostream>
 #include <sstream>
+#include <fstream>
 #include <string>
 #include <map>
 #include "parser.h"
 #include "ast.h"
 #include "lexer.h"
+#include "stacks.h"
 
-//TODO: 1) add control flow
-//TODO: 2) add parser helper utility functions: 1) match(Token); 2) expect(Token); 3) check(Token); 4) 5) assert(Token);
+
+//TODO: 2) add syntax highlighting
+
 
 int main()
 {
     try
     {
-        std::map<string, int> env;
-        env["a"] = -4;
-        std::string input = "avg(;";
-        std::istringstream is(input);
+        std::ifstream is("/home/wcosmo/Desktop/Projects/myLang_test/main.som");
+        if (!is.is_open())
+        {
+            throw std::runtime_error("Failed to open file");
+        }
+
+        EnvironmentStack env;
+        // std::string input = "let g = 1;"
+        //     "if(g == 1){ let g=2;}";
+        // std::istringstream is(input);
         TokenStream ts{is};
-        unique_ptr<ExpressionNode> node;
         int result{0};
         while (true)
         {
-            node = parseStatement(ts);
-            Token t = ts.getNextToken();
-
-            if (t.type != TokenType::Semicolon)
-                throw std::runtime_error("missing ';'");
-            t = ts.peek();
+            unique_ptr<ExpressionNode> node = parseStatement(ts);
             result = node->evaluateNode(env);
             std::cout << "Result : " << result << std::endl;
 
             if constexpr (DEBUG_AST) node->debugPrint(1);
 
-            if (t.type == TokenType::End)
+            if (match(TokenType::End, ts))
             {
                 break;
             }
         }
-        for (const auto& var : env)
-        {
-            std::cout << var.first << " = " << var.second << '\n';
-        }
+
+        env.debugEnvPrint();
 
         return 0;
     }

@@ -3,21 +3,20 @@
 
 #include <memory>
 #include <string>
-#include <map>
+#include "stacks.h"
 
 #include "lexer.h"
 
-constexpr bool DEBUG_AST = false;
+constexpr bool DEBUG_AST = true;
 
 using std::unique_ptr;
 using std::make_unique;
 using std::string;
-using std::map;
 
 class ExpressionNode
 {
 public:
-    virtual int evaluateNode(map<string, int>& env) const =0;
+    virtual double evaluateNode(EnvironmentStack& scopes) const =0;
     virtual void debugPrint(int indentLevel) const =0;
     virtual ~ExpressionNode() = default;
 };
@@ -26,15 +25,50 @@ class IfNode : public ExpressionNode
 {
 public:
     IfNode(unique_ptr<ExpressionNode> c, unique_ptr<ExpressionNode> thenBranch) : condition{std::move(c)},
-        statement{std::move(thenBranch)}
+        thenStatement{std::move(thenBranch)}
     {
     };
-    int evaluateNode(map<string, int>& env) const override;
+
+    IfNode(unique_ptr<ExpressionNode> c, unique_ptr<ExpressionNode> thenBranch,
+           unique_ptr<ExpressionNode> elseBranch)
+        : condition{std::move(c)}, thenStatement{std::move(thenBranch)}, elseStatement{std::move(elseBranch)}
+    {
+    };
+    double evaluateNode(EnvironmentStack& scopes) const override;
+    void debugPrint(int indentLevel) const override;
+
+private:
+    unique_ptr<ExpressionNode> condition;
+    unique_ptr<ExpressionNode> thenStatement;
+    unique_ptr<ExpressionNode> elseStatement;
+};
+
+class WhileNode : public ExpressionNode
+{
+public:
+    WhileNode(unique_ptr<ExpressionNode> c, unique_ptr<ExpressionNode> whileBranch) : condition{std::move(c)},
+        statement{std::move(whileBranch)}
+    {
+    };
+    double evaluateNode(EnvironmentStack& scopes) const override;
     void debugPrint(int indentLevel) const override;
 
 private:
     unique_ptr<ExpressionNode> condition;
     unique_ptr<ExpressionNode> statement;
+};
+
+class BlockNode : public ExpressionNode
+{
+public:
+    BlockNode(vector<unique_ptr<ExpressionNode>> ss) : statements{std::move(ss)}
+    {
+    };
+    void debugPrint(int indentLevel) const override;
+    double evaluateNode(EnvironmentStack& scopes) const override;
+
+private:
+    vector<unique_ptr<ExpressionNode>> statements;
 };
 
 class UnaryNode : public ExpressionNode
@@ -43,7 +77,7 @@ public:
     UnaryNode(Token unOp, unique_ptr<ExpressionNode> n_node) : op{unOp}, child{std::move(n_node)}
     {
     };
-    int evaluateNode(map<string, int>& env) const override;
+    double evaluateNode(EnvironmentStack& scopes) const override;
     void debugPrint(int indentLevel) const override;
 
 private:
@@ -54,14 +88,14 @@ private:
 class NumberNode : public ExpressionNode
 {
 public:
-    explicit NumberNode(int v) : value{v}
+    explicit NumberNode(double v) : value{v}
     {
     };
-    int evaluateNode(map<string, int>& env) const override;
+    double evaluateNode(EnvironmentStack& scopes) const override;
     void debugPrint(int indentLevel) const override;
 
 private:
-    int value;
+    double value;
 };
 
 class BinaryNode : public ExpressionNode
@@ -71,7 +105,7 @@ public:
         : op{biOp}, left{std::move(leftNode)}, right{std::move(rightNode)}
     {
     };
-    int evaluateNode(map<string, int>& env) const override;
+    double evaluateNode(EnvironmentStack& scopes) const override;
     void debugPrint(int indentLevel) const override;
 
 private:
@@ -86,7 +120,7 @@ public:
     explicit VariableNode(std::string name) : identifierName{name}
     {
     };
-    int evaluateNode(map<string, int>& env) const override;
+    double evaluateNode(EnvironmentStack& scopes) const override;
     const string& getIdentifierName() const { return identifierName; };
     void debugPrint(int indentLevel) const override;
 
@@ -101,7 +135,26 @@ public:
         lvalue{std::move(left)}, rvalue{std::move(right)}
     {
     };
-    int evaluateNode(map<string, int>& env) const override;
+    double evaluateNode(EnvironmentStack& scopes) const override;
+    void debugPrint(int indentLevel) const override;
+
+private:
+    unique_ptr<VariableNode> lvalue;
+    unique_ptr<ExpressionNode> rvalue;
+};
+
+class DeclarationNode : public ExpressionNode
+{
+public:
+    DeclarationNode(unique_ptr<VariableNode> left, unique_ptr<ExpressionNode> right) : lvalue{std::move(left)},
+        rvalue{std::move(right)}
+    {
+    };
+
+    DeclarationNode(unique_ptr<VariableNode> left) : lvalue{std::move(left)}, rvalue(make_unique<NumberNode>(0))
+    {
+    };
+    double evaluateNode(EnvironmentStack& scopes) const override;
     void debugPrint(int indentLevel) const override;
 
 private:
@@ -120,7 +173,7 @@ public:
         arguments{std::move(parameters)}
     {
     };
-    int evaluateNode(map<string, int>& env) const override;
+    double evaluateNode(EnvironmentStack& scopes) const override;
     void debugPrint(int indentLevel) const override;
 
 private

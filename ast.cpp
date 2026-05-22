@@ -4,9 +4,9 @@
 
 using std::cout;
 
-const int IndentSize = 2;
+constexpr int IndentSize = 2;
 
-int NumberNode::evaluateNode(map<string, int>& env) const
+double NumberNode::evaluateNode(EnvironmentStack& scopes) const
 {
     return value;
 }
@@ -16,9 +16,9 @@ void NumberNode::debugPrint(int indentLevel) const
     cout << "Number(" << value << ")\n";
 }
 
-int UnaryNode::evaluateNode(map<string, int>& env) const
+double UnaryNode::evaluateNode(EnvironmentStack& scopes) const
 {
-    int value = child->evaluateNode(env);
+    double value = child->evaluateNode(scopes);
     if (op.type == TokenType::Minus) return -value;
     return value;
 }
@@ -30,10 +30,10 @@ void UnaryNode::debugPrint(int indentLevel) const
     child->debugPrint(indentLevel + 1);
 }
 
-int BinaryNode::evaluateNode(map<string, int>& env) const
+double BinaryNode::evaluateNode(EnvironmentStack& scopes) const
 {
-    int lval = left->evaluateNode(env);
-    int rval = right->evaluateNode(env);
+    double lval = left->evaluateNode(scopes);
+    double rval = right->evaluateNode(scopes);
 
     switch (op.type)
     {
@@ -70,12 +70,9 @@ void BinaryNode::debugPrint(int indentLevel) const
     right->debugPrint(indentLevel + 1);
 }
 
-int VariableNode::evaluateNode(map<string, int>& env) const
+double VariableNode::evaluateNode(EnvironmentStack& scopes) const
 {
-    auto iter = env.find(identifierName);
-    if (iter == env.end())
-        throw std::runtime_error("Undefined variable: " + identifierName);
-    return iter->second;
+    return scopes.get(identifierName);
 }
 
 void VariableNode::debugPrint(int i) const
@@ -83,10 +80,12 @@ void VariableNode::debugPrint(int i) const
     cout << "Variable(" << identifierName << ")\n";
 }
 
-int AssignmentNode::evaluateNode(map<string, int>& env) const
+double AssignmentNode::evaluateNode(EnvironmentStack& scopes) const
 {
-    int right = rvalue->evaluateNode(env);
-    env[lvalue->getIdentifierName()] = right;
+    string identifier = lvalue->getIdentifierName();
+    scopes.get(identifier);
+    double right = rvalue->evaluateNode(scopes);
+    scopes.assign(identifier, right);
     return right;
 }
 
@@ -99,14 +98,38 @@ void AssignmentNode::debugPrint(int indentLevel) const
     rvalue->debugPrint(indentLevel + 1);
 }
 
-int IfNode::evaluateNode(map<string, int>& env) const
+double DeclarationNode::evaluateNode(EnvironmentStack& scopes) const
 {
-    if (condition->evaluateNode(env))
+    double right = rvalue->evaluateNode(scopes);
+    scopes.declare(lvalue->getIdentifierName(), right);
+    return right;
+}
+
+void DeclarationNode::debugPrint(int indentLevel) const
+{
+    cout << " Let\n";
+    cout << string(IndentSize * indentLevel, ' ');
+    lvalue->debugPrint(indentLevel + 1);
+    cout << string(IndentSize * indentLevel, ' ');
+    rvalue->debugPrint(indentLevel + 1);
+}
+
+double IfNode::evaluateNode(EnvironmentStack& scopes) const
+{
+    scopes.pushScope();
+    if (condition->evaluateNode(scopes))
     {
-        return statement->evaluateNode(env);
+        thenStatement->evaluateNode(scopes);
     }
+    else
+    {
+        if (elseStatement)
+            elseStatement->evaluateNode(scopes);
+    }
+    scopes.popScope();
     return 0;
 }
+
 
 void IfNode::debugPrint(int indentLevel) const
 {
@@ -114,36 +137,82 @@ void IfNode::debugPrint(int indentLevel) const
     cout << string(IndentSize * indentLevel, ' ');
     condition->debugPrint(indentLevel + 1);
     cout << string(IndentSize * indentLevel, ' ');
+    thenStatement->debugPrint(indentLevel + 1);
+
+    if (elseStatement)
+    {
+        cout << string(IndentSize * indentLevel, ' ') << "Else\n";
+        cout << string(IndentSize * indentLevel, ' ');
+        elseStatement->debugPrint(indentLevel + 1);
+    }
+}
+
+double WhileNode::evaluateNode(EnvironmentStack& scopes) const
+{
+    scopes.pushScope();
+    while (condition->evaluateNode(scopes))
+    {
+        statement->evaluateNode(scopes);
+    }
+    return 0;
+}
+
+void WhileNode::debugPrint(int indentLevel) const
+{
+    cout << "While\n";
+    cout << string(IndentSize * indentLevel, ' ');
+    condition->debugPrint(indentLevel + 1);
     statement->debugPrint(indentLevel + 1);
 }
 
-int FunctionCallNode::evaluateNode(map<string, int>& env) const
+
+double BlockNode::evaluateNode(EnvironmentStack& scopes) const
+{
+    for (auto& statement : statements)
+    {
+        statement->evaluateNode(scopes);
+    }
+    return 0;
+}
+
+void BlockNode::debugPrint(int indentLevel) const
+{
+    cout << "Block{\n";
+    for (auto& statement : statements)
+    {
+        cout << string(IndentSize * indentLevel, ' ');
+        statement->debugPrint(indentLevel + 1);
+    }
+    cout << string(IndentSize * indentLevel, ' ') << "}\n";
+}
+
+double FunctionCallNode::evaluateNode(EnvironmentStack& scopes) const
 {
     if (identifierName == "abs")
     {
         if (arguments.size() == 1)
-            return abs(arguments[0]->evaluateNode(env));
+            return abs(arguments[0]->evaluateNode(scopes));
         validateArity(1, arguments.size(), "abs");
     }
     if (identifierName == "max")
     {
         if (arguments.size() == 2)
-            return std::max(arguments[0]->evaluateNode(env), arguments[1]->evaluateNode(env));
+            return std::max(arguments[0]->evaluateNode(scopes), arguments[1]->evaluateNode(scopes));
         validateArity(2, arguments.size(), "max");
     }
     if (identifierName == "min")
     {
         if (arguments.size() == 2)
-            return std::min(arguments[0]->evaluateNode(env), arguments[1]->evaluateNode(env));
+            return std::min(arguments[0]->evaluateNode(scopes), arguments[1]->evaluateNode(scopes));
         validateArity(2, arguments.size(), "min");
     }
     if (identifierName == "avg")
     {
-        if (arguments.size() != 0)
+        if (!arguments.empty())
         {
-            int avg = 0;
-            for (int i = 0; i < arguments.size(); ++i)
-                avg += arguments[i]->evaluateNode(env);
+            double avg = 0;
+            for (const auto& argument : arguments)
+                avg += argument->evaluateNode(scopes);
             avg = avg / arguments.size();
             return avg;
         }

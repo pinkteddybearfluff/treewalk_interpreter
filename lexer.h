@@ -28,18 +28,23 @@ enum class TokenType
     Divide,
     OpenParen,
     CloseParen,
+    OpenBrace,
+    CloseBrace,
     Comma,
     Identifier,
     Assign,
     Semicolon,
     If,
+    Else,
+    While,
+    Let,
     End,
 };
 
 struct Token
 {
     TokenType type;
-    int value;
+    double value;
     std::string name;
 };
 
@@ -60,7 +65,7 @@ private:
     Token buffer[2];
     int bufferCount{0};
     Token readFromStream();
-    Token charToToken(char ch);
+    Token charToToken(int ch);
 
     string getVarName();
 };

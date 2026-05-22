@@ -66,6 +66,10 @@ void debugExit(std::string_view parserName)
 void debugPeek(std::string_view parserName, const Token& t)
 {
     cout << string(parserDepth * 2, ' ') << parserName << " peeked " << getStringForType(t.type) << std::endl;
+    if (t.type == TokenType::Identifier)
+    {
+        cout << t.name << std::endl;
+    }
 }
 
 void debugNextPeek(std::string_view parserName, const Token& t)
@@ -79,30 +83,109 @@ unique_ptr<ExpressionNode> parseStatement(TokenStream& ts)
     string parserName = "parseStatement";
     if constexpr (DEBUG_PARSER) debugEnter(parserName);
 
-    // Token t1 = ts.peek();
-    // if constexpr (DEBUG_PARSER) debugPeek(parserName, t1);
-
     if (check(TokenType::Assign, ts))
         throw std::runtime_error("'=': expected an l-value for left operand");
 
+    if (check(TokenType::If, ts))
+    {
+        if constexpr (DEBUG_PARSER) debugExit(parserName);
+        return parseIfStatement(ts);
+    }
+    if (check(TokenType::While, ts))
+    {
+        if constexpr (DEBUG_PARSER) debugExit(parserName);
+        return parseWhileStatement(ts);
+    }
+    if (check(TokenType::OpenBrace, ts))
+    {
+        if constexpr (DEBUG_PARSER) debugExit(parserName);
+        return parseBlock(ts);
+    }
+
+    unique_ptr<ExpressionNode> expressionNode = parseExpressionStatement(ts);
+    consume(TokenType::Semicolon, "expected ';' after statement", ts);
+    if constexpr (DEBUG_PARSER) debugExit(parserName);
+    return expressionNode;
+}
+
+unique_ptr<ExpressionNode> parseExpressionStatement(TokenStream& ts)
+{
+    string parserName = "parseExpressionStatement";
     if (ts.peekNext().type == TokenType::Assign)
     {
         Token t = consume(TokenType::Identifier, "'=': left operand must be l-value", ts);
 
-        unique_ptr<VariableNode> lvalue = make_unique<VariableNode>(t.name);
-
         match(TokenType::Assign, ts);
 
-        unique_ptr<ExpressionNode> rvalue = parseEquality(ts);
-
         if constexpr (DEBUG_PARSER) debugExit(parserName);
-        return make_unique<AssignmentNode>(std::move(lvalue), std::move(rvalue));
+        return make_unique<AssignmentNode>(make_unique<VariableNode>(t.name), parseEquality(ts));
     }
-
-    if constexpr (DEBUG_PARSER) debugExit(parserName);
+    if (ts.peek().type == TokenType::Let)
+    {
+        match(TokenType::Let, ts);
+        Token t = consume(TokenType::Identifier, "expected lvalue after 'let'", ts);
+        if (match(TokenType::Assign, ts))
+        {
+            if constexpr (DEBUG_PARSER) debugExit(parserName);
+            return make_unique<DeclarationNode>(make_unique<VariableNode>(t.name), parseEquality(ts));
+        }
+        if (!check(TokenType::Semicolon, ts))
+            throw std::runtime_error("expected ';' after declaration");
+        return make_unique<DeclarationNode>(make_unique<VariableNode>(t.name));
+    }
     return parseEquality(ts);
 }
 
+unique_ptr<ExpressionNode> parseIfStatement(TokenStream& ts)
+{
+    string parserName = "parseIfStatement";
+    match(TokenType::If, ts);
+    consume(TokenType::OpenParen, "expected '(' after if", ts);
+    unique_ptr<ExpressionNode> condition = parseExpressionStatement(ts);
+    consume(TokenType::CloseParen, "expected ')' after condition statement", ts);
+
+    unique_ptr<ExpressionNode> thenStatement = parseStatement(ts);
+    if (match(TokenType::Else, ts))
+    {
+        unique_ptr<ExpressionNode> elseStatement = parseStatement(ts);
+        if constexpr (DEBUG_PARSER) debugExit(parserName);
+        return make_unique<IfNode>(std::move(condition), std::move(thenStatement), std::move(elseStatement));
+    }
+
+    if constexpr (DEBUG_PARSER) debugExit(parserName);
+    return make_unique<IfNode>(std::move(condition), std::move(thenStatement));
+}
+
+unique_ptr<ExpressionNode> parseWhileStatement(TokenStream& ts)
+{
+    string parserName = "parseWhileStatement";
+    match(TokenType::While, ts);
+    consume(TokenType::OpenParen, "expected '(' after while", ts);
+    unique_ptr<ExpressionNode> condition = parseExpressionStatement(ts);
+    consume(TokenType::CloseParen, "expected ')' after condition", ts);
+
+    unique_ptr<ExpressionNode> statement = parseStatement(ts);
+
+    if constexpr (DEBUG_PARSER) debugExit(parserName);
+    return make_unique<WhileNode>(std::move(condition), std::move(statement));
+}
+
+
+unique_ptr<ExpressionNode> parseBlock(TokenStream& ts)
+{
+    string parserName = "parseBlock";
+    match(TokenType::OpenBrace, ts);
+    vector<unique_ptr<ExpressionNode>> statements;
+    while (true)
+    {
+        statements.push_back(parseStatement(ts));
+        if (check(TokenType::CloseBrace, ts)) break;
+    }
+    consume(TokenType::CloseBrace, "expected '}' for block", ts);
+
+    if constexpr (DEBUG_PARSER) debugExit(parserName);
+    return make_unique<BlockNode>(std::move(statements));
+}
 
 unique_ptr<ExpressionNode> parseEquality(TokenStream& ts)
 {
@@ -135,7 +218,7 @@ unique_ptr<ExpressionNode> parseComparison(TokenStream& ts)
     string parserName = "parseComparison";
     if constexpr (DEBUG_PARSER) debugEnter(parserName);
 
-    auto lval = parseExpression(ts);
+    auto lval = parseTerm(ts);
     while (true)
     {
         Token t = ts.peek();
@@ -147,37 +230,10 @@ unique_ptr<ExpressionNode> parseComparison(TokenStream& ts)
             t = ts.getNextToken();
             if constexpr (DEBUG_PARSER) debugConsume(parserName, t);
 
-            auto rval = parseExpression(ts);
+            auto rval = parseTerm(ts);
             lval = make_unique<BinaryNode>(t, std::move(lval), std::move(rval));
         }
         else break;
-    }
-
-    if constexpr (DEBUG_PARSER) debugExit(parserName);
-    return lval;
-}
-
-unique_ptr<ExpressionNode> parseExpression(TokenStream& ts)
-{
-    string parserName = "parseExpression";
-    if constexpr (DEBUG_PARSER) debugEnter(parserName);
-
-    auto lval = parseTerm(ts);
-    while (true)
-    {
-        Token t = ts.peek();
-        if constexpr (DEBUG_PARSER) debugPeek(parserName, t);
-
-        if (t.type == TokenType::Plus || t.type == TokenType::Minus)
-        {
-            t = ts.getNextToken();
-            if constexpr (DEBUG_PARSER) debugConsume(parserName, t);
-
-            unique_ptr<ExpressionNode> rval = parseTerm(ts);
-            lval = make_unique<BinaryNode>(t, std::move(lval), std::move(rval));
-        }
-        else
-            break;
     }
 
     if constexpr (DEBUG_PARSER) debugExit(parserName);
@@ -189,13 +245,13 @@ unique_ptr<ExpressionNode> parseTerm(TokenStream& ts)
     string parserName = "parseTerm";
     if constexpr (DEBUG_PARSER) debugEnter(parserName);
 
-    unique_ptr<ExpressionNode> lval = parseFactor(ts);
+    auto lval = parseFactor(ts);
     while (true)
     {
         Token t = ts.peek();
         if constexpr (DEBUG_PARSER) debugPeek(parserName, t);
 
-        if (t.type == TokenType::Multiply || t.type == TokenType::Divide)
+        if (t.type == TokenType::Plus || t.type == TokenType::Minus)
         {
             t = ts.getNextToken();
             if constexpr (DEBUG_PARSER) debugConsume(parserName, t);
@@ -203,7 +259,8 @@ unique_ptr<ExpressionNode> parseTerm(TokenStream& ts)
             unique_ptr<ExpressionNode> rval = parseFactor(ts);
             lval = make_unique<BinaryNode>(t, std::move(lval), std::move(rval));
         }
-        else break;
+        else
+            break;
     }
 
     if constexpr (DEBUG_PARSER) debugExit(parserName);
@@ -215,6 +272,48 @@ unique_ptr<ExpressionNode> parseFactor(TokenStream& ts)
     string parserName = "parseFactor";
     if constexpr (DEBUG_PARSER) debugEnter(parserName);
 
+    unique_ptr<ExpressionNode> lval = parsePrimary(ts);
+    while (true)
+    {
+        Token t = ts.peek();
+        if constexpr (DEBUG_PARSER) debugPeek(parserName, t);
+
+        if (t.type == TokenType::Multiply || t.type == TokenType::Divide)
+        {
+            t = ts.getNextToken();
+            if constexpr (DEBUG_PARSER) debugConsume(parserName, t);
+
+            unique_ptr<ExpressionNode> rval = parsePrimary(ts);
+            lval = make_unique<BinaryNode>(t, std::move(lval), std::move(rval));
+        }
+        else break;
+    }
+
+    if constexpr (DEBUG_PARSER) debugExit(parserName);
+    return lval;
+}
+
+unique_ptr<ExpressionNode> parseUnary(TokenStream& ts)
+{
+    string parserName = "parseUnary";
+    if constexpr (DEBUG_PARSER) debugEnter(parserName);
+
+    if (check(TokenType::Plus, ts) || check(TokenType::Minus, ts))
+    {
+        Token t = ts.getNextToken();
+        if constexpr (DEBUG_PARSER) debugConsume(parserName, t);
+        return make_unique<UnaryNode>(t, parsePrimary(ts));
+    }
+
+    if constexpr (DEBUG_PARSER) debugExit(parserName);
+    return parsePrimary(ts);
+}
+
+unique_ptr<ExpressionNode> parsePrimary(TokenStream& ts)
+{
+    string parserName = "parsePrimary";
+    if constexpr (DEBUG_PARSER) debugEnter(parserName);
+
     Token t = ts.getNextToken();
     if constexpr (DEBUG_PARSER) debugConsume(parserName, t);
 
@@ -222,16 +321,6 @@ unique_ptr<ExpressionNode> parseFactor(TokenStream& ts)
     {
         if constexpr (DEBUG_PARSER) debugExit(parserName);
         return make_unique<NumberNode>(t.value);
-    }
-    if (t.type == TokenType::Minus)
-    {
-        if constexpr (DEBUG_PARSER) debugExit(parserName);
-        return make_unique<UnaryNode>(t, parseFactor(ts));
-    }
-    if (t.type == TokenType::Plus)
-    {
-        if constexpr (DEBUG_PARSER) debugExit(parserName);
-        return make_unique<UnaryNode>(t, parseFactor(ts));
     }
     if (t.type == TokenType::OpenParen)
     {
@@ -264,7 +353,7 @@ unique_ptr<ExpressionNode> parseFactor(TokenStream& ts)
                 if (match(TokenType::Comma, ts))
                     throw std::runtime_error("expected expression before ',' token");
 
-                argumentNodes.push_back(parseExpression(ts));
+                argumentNodes.push_back(parseEquality(ts));
 
                 // Correct Case 2: func(Exp, Exp);
                 if (match(TokenType::CloseParen, ts))
@@ -293,32 +382,7 @@ unique_ptr<ExpressionNode> parseFactor(TokenStream& ts)
         if constexpr (DEBUG_PARSER) debugExit(parserName);
         return make_unique<VariableNode>(name);
     }
-    if (t.type == TokenType::If)
-    {
-        t = ts.peek();
-        if constexpr (DEBUG_PARSER) debugPeek(parserName, t);
 
-        unique_ptr<ExpressionNode> condition;
-        if (t.type == TokenType::OpenParen)
-        {
-            t = ts.getNextToken();
-            if constexpr (DEBUG_PARSER) debugConsume(parserName, t);
-            condition = parseStatement(ts);
-        }
-        t = ts.getNextToken();
-        if constexpr (DEBUG_PARSER) debugConsume(parserName, t);
-
-        if (t.type != TokenType::CloseParen)
-        {
-            throw std::runtime_error("expected ')' after condition");
-        }
-        unique_ptr<ExpressionNode> statement = parseStatement(ts);
-        t = ts.peek();
-        if constexpr (DEBUG_PARSER) debugPeek(parserName, t);
-
-        if constexpr (DEBUG_PARSER) debugExit(parserName);
-        return make_unique<IfNode>(std::move(condition), std::move(statement));
-    }
     // Invalid Operand error
     throw std::runtime_error("invalid operand");
 }

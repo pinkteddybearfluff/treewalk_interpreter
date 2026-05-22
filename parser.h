@@ -23,11 +23,16 @@ void debugExit(std::string_view parserName);
 
 
 unique_ptr<ExpressionNode> parseStatement(TokenStream& ts);
+unique_ptr<ExpressionNode> parseIfStatement(TokenStream& ts);
+unique_ptr<ExpressionNode> parseWhileStatement(TokenStream& ts);
+unique_ptr<ExpressionNode> parseBlock(TokenStream& ts);
+unique_ptr<ExpressionNode> parseExpressionStatement(TokenStream& ts);
 unique_ptr<ExpressionNode> parseEquality(TokenStream& ts);
 unique_ptr<ExpressionNode> parseComparison(TokenStream& ts);
-unique_ptr<ExpressionNode> parseExpression(TokenStream& ts);
 unique_ptr<ExpressionNode> parseTerm(TokenStream& ts);
 unique_ptr<ExpressionNode> parseFactor(TokenStream& ts);
+unique_ptr<ExpressionNode> parseUnary(TokenStream& ts);
+unique_ptr<ExpressionNode> parsePrimary(TokenStream& ts);
 
 
 #endif //INTERPRETER_PARSER_H

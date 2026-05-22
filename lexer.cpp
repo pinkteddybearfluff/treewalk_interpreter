@@ -3,22 +3,24 @@
 string TokenStream::getVarName()
 {
     string name;
-    char ch;
-    is >> ch;
+    int ch = is.get();
+    // ch = is.get();
     if (isalpha(ch))
         while (true)
         {
-            name += ch;
-            is >> ch;
+            if (ch != EOF)
+                name += static_cast<char>(ch);
+            ch = is.get();
             if (!isalnum(ch))
             {
-                is.putback(ch);
+                is.unget();
                 break;
             }
             if (!is)
             {
                 if (is.eof()) throw std::runtime_error("Expected ;");
             }
+            if (isspace(ch)) break;
         }
     return name;
 }
@@ -42,14 +44,13 @@ Token TokenStream::getNextToken()
 
 Token TokenStream::readFromStream()
 {
-    char ch;
-    is >> ch;
+    int ch = is.get();
+    while (isspace(ch))ch = is.get();
     if (isdigit(ch))
     {
-        is.putback(ch);
-        int value;
+        is.unget();
+        double value;
         is >> value;
-
         return Token{TokenType::Number, value};
     }
     if (!is)
@@ -61,9 +62,12 @@ Token TokenStream::readFromStream()
     }
     if (isalpha(ch))
     {
-        is.putback(ch);
+        is.unget();
         string name = getVarName();
         if (name == "if") return Token{TokenType::If};
+        if (name == "else") return Token{TokenType::Else};
+        if (name == "while") return Token{TokenType::While};
+        if (name == "let") return Token{TokenType::Let};
 
         return Token{TokenType::Identifier, 0, name};
     }
@@ -130,7 +134,7 @@ Token TokenStream::peekNext()
     return buffer[1];
 }
 
-Token TokenStream::charToToken(char ch)
+Token TokenStream::charToToken(int ch)
 {
     switch (ch)
     {
@@ -146,6 +150,10 @@ Token TokenStream::charToToken(char ch)
         return Token{TokenType::OpenParen};
     case ')':
         return Token{TokenType::CloseParen};
+    case '{':
+        return Token{TokenType::OpenBrace};
+    case '}':
+        return Token{TokenType::CloseBrace};
     case ';':
         return Token{TokenType::Semicolon};
     case ',':
@@ -155,8 +163,7 @@ Token TokenStream::charToToken(char ch)
             int ch2 = is.peek();
             if (static_cast<char>(ch2) == '=')
             {
-                char ch3;
-                is >> ch3;
+                is.get();
                 return Token{TokenType::Equal};
             }
             return Token{TokenType::Assign};
@@ -164,7 +171,6 @@ Token TokenStream::charToToken(char ch)
     case '<':
         {
             int ch2 = is.peek();
-            // std::cout << getStringForType(t.type) << std::endl;
             if (static_cast<char>(ch2) == '=')
             {
                 char ch3;
@@ -176,11 +182,9 @@ Token TokenStream::charToToken(char ch)
     case '>':
         {
             int ch2 = is.peek();
-
             if (static_cast<char>(ch2) == '=')
             {
-                char ch3;
-                is >> ch3;
+                is.get();
                 return Token{TokenType::GreaterEqual};
             }
             return Token{TokenType::Greater};
@@ -190,12 +194,12 @@ Token TokenStream::charToToken(char ch)
             int ch2 = is.peek();
             if (static_cast<char>(ch2) == '=')
             {
-                char ch3;
-                is >> ch3;
+                is.get();
                 return Token{TokenType::NotEqual};
             }
         }
     default:
+        cout << static_cast<char>(ch) << std::endl;
         throw std::runtime_error("Unknown token!");
     }
 }
@@ -259,6 +263,16 @@ string getStringForType(TokenType type)
         return "LessEqual";
     case TokenType::If:
         return "If";
+    case TokenType::Else:
+        return "Else";
+    case TokenType::OpenBrace:
+        return "OpenBrace";
+    case TokenType::CloseBrace:
+        return "CloseBrace";
+    case TokenType::While:
+        return "While";
+    case TokenType::Let:
+        return "Let";
     }
 }
 

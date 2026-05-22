@@ -10,4 +10,7 @@ add_executable(interpreter
         parser.cpp
         parser.h
         ast.cpp
-        ast.h)
+        ast.h
+        stacks.cpp
+        stacks.cpp
+        stacks.h)
