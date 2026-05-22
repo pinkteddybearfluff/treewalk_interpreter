@@ -25,6 +25,19 @@ string TokenStream::getVarName()
     return name;
 }
 
+string TokenStream::getString()
+{
+    string str;
+    int ch = is.get();
+    while (ch != '"')
+    {
+        str += static_cast<char>(ch);
+        ch = is.get();
+    }
+    is.unget();
+    return str;
+}
+
 Token TokenStream::getNextToken()
 {
     if (bufferCount == 2)
@@ -51,7 +64,14 @@ Token TokenStream::readFromStream()
         is.unget();
         double value;
         is >> value;
-        return Token{TokenType::Number, value};
+        return Token{TokenType::Number, static_cast<double>(value)};
+    }
+    if (ch == '"')
+    {
+        string str;
+        str = getString();
+        if (is.get() != '"') throw std::runtime_error("expected '\"' for string termination");
+        return Token{TokenType::String, str};
     }
     if (!is)
     {
@@ -69,7 +89,7 @@ Token TokenStream::readFromStream()
         if (name == "while") return Token{TokenType::While};
         if (name == "let") return Token{TokenType::Let};
 
-        return Token{TokenType::Identifier, 0, name};
+        return Token{TokenType::Identifier, 0.0, name};
     }
     return charToToken(ch);
 }

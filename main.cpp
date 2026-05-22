@@ -2,14 +2,15 @@
 #include <sstream>
 #include <fstream>
 #include <string>
-#include <map>
 #include "parser.h"
 #include "ast.h"
 #include "lexer.h"
 #include "stacks.h"
 
 
-//TODO: 2) add syntax highlighting
+//TODO: 1) add better error handling with added string
+//TODO: 2) add user defined function
+//TODO: 3) add syntax highlighting
 
 
 int main()
@@ -31,8 +32,8 @@ int main()
         while (true)
         {
             unique_ptr<ExpressionNode> node = parseStatement(ts);
-            result = node->evaluateNode(env);
-            std::cout << "Result : " << result << std::endl;
+            node->evaluateNode(env);
+            // std::cout << "Result : " << result << std::endl;
 
             if constexpr (DEBUG_AST) node->debugPrint(1);
 
@@ -42,7 +43,8 @@ int main()
             }
         }
 
-        env.debugEnvPrint();
+        if constexpr (DEBUG_ENV)
+            env.debugEnvPrint();
 
         return 0;
     }

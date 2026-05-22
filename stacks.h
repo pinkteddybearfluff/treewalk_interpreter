@@ -4,12 +4,16 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <variant>
 
 using std::string;
 using std::vector;
 using std::map;
 
-using Environment = map<string, double>;
+using Type = std::variant<double, bool, string>;
+
+constexpr bool DEBUG_ENV = false;
+using Environment = map<string, Type>;
 
 class EnvironmentStack
 {
@@ -21,9 +25,9 @@ public:
     void popScope();
     bool isEmpty();
 
-    double get(string name);
-    void assign(string name, double value);
-    void declare(string name, double value);
+    Type get(string name);
+    void assign(string name, Type value);
+    void declare(string name, Type value);
     void debugEnvPrint();
 
 private:

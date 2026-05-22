@@ -317,10 +317,15 @@ unique_ptr<ExpressionNode> parsePrimary(TokenStream& ts)
     Token t = ts.getNextToken();
     if constexpr (DEBUG_PARSER) debugConsume(parserName, t);
 
+    if (t.type == TokenType::String)
+    {
+        if constexpr (DEBUG_PARSER) debugExit(parserName);
+        return make_unique<StringNode>(std::get<string>(t.value));
+    }
     if (t.type == TokenType::Number)
     {
         if constexpr (DEBUG_PARSER) debugExit(parserName);
-        return make_unique<NumberNode>(t.value);
+        return make_unique<NumberNode>(std::get<double>(t.value));
     }
     if (t.type == TokenType::OpenParen)
     {

@@ -16,7 +16,7 @@ using std::string;
 class ExpressionNode
 {
 public:
-    virtual double evaluateNode(EnvironmentStack& scopes) const =0;
+    virtual Type evaluateNode(EnvironmentStack& scopes) const =0;
     virtual void debugPrint(int indentLevel) const =0;
     virtual ~ExpressionNode() = default;
 };
@@ -34,7 +34,7 @@ public:
         : condition{std::move(c)}, thenStatement{std::move(thenBranch)}, elseStatement{std::move(elseBranch)}
     {
     };
-    double evaluateNode(EnvironmentStack& scopes) const override;
+    Type evaluateNode(EnvironmentStack& scopes) const override;
     void debugPrint(int indentLevel) const override;
 
 private:
@@ -50,7 +50,7 @@ public:
         statement{std::move(whileBranch)}
     {
     };
-    double evaluateNode(EnvironmentStack& scopes) const override;
+    Type evaluateNode(EnvironmentStack& scopes) const override;
     void debugPrint(int indentLevel) const override;
 
 private:
@@ -65,7 +65,7 @@ public:
     {
     };
     void debugPrint(int indentLevel) const override;
-    double evaluateNode(EnvironmentStack& scopes) const override;
+    Type evaluateNode(EnvironmentStack& scopes) const override;
 
 private:
     vector<unique_ptr<ExpressionNode>> statements;
@@ -77,7 +77,7 @@ public:
     UnaryNode(Token unOp, unique_ptr<ExpressionNode> n_node) : op{unOp}, child{std::move(n_node)}
     {
     };
-    double evaluateNode(EnvironmentStack& scopes) const override;
+    Type evaluateNode(EnvironmentStack& scopes) const override;
     void debugPrint(int indentLevel) const override;
 
 private:
@@ -91,11 +91,24 @@ public:
     explicit NumberNode(double v) : value{v}
     {
     };
-    double evaluateNode(EnvironmentStack& scopes) const override;
+    Type evaluateNode(EnvironmentStack& scopes) const override;
     void debugPrint(int indentLevel) const override;
 
 private:
     double value;
+};
+
+class StringNode : public ExpressionNode
+{
+public:
+    StringNode(string str) : value{str}
+    {
+    };
+    void debugPrint(int indentLevel) const override;
+    Type evaluateNode(EnvironmentStack& scopes) const override;
+
+private:
+    string value;
 };
 
 class BinaryNode : public ExpressionNode
@@ -105,7 +118,7 @@ public:
         : op{biOp}, left{std::move(leftNode)}, right{std::move(rightNode)}
     {
     };
-    double evaluateNode(EnvironmentStack& scopes) const override;
+    Type evaluateNode(EnvironmentStack& scopes) const override;
     void debugPrint(int indentLevel) const override;
 
 private:
@@ -120,7 +133,7 @@ public:
     explicit VariableNode(std::string name) : identifierName{name}
     {
     };
-    double evaluateNode(EnvironmentStack& scopes) const override;
+    Type evaluateNode(EnvironmentStack& scopes) const override;
     const string& getIdentifierName() const { return identifierName; };
     void debugPrint(int indentLevel) const override;
 
@@ -135,7 +148,7 @@ public:
         lvalue{std::move(left)}, rvalue{std::move(right)}
     {
     };
-    double evaluateNode(EnvironmentStack& scopes) const override;
+    Type evaluateNode(EnvironmentStack& scopes) const override;
     void debugPrint(int indentLevel) const override;
 
 private:
@@ -154,7 +167,7 @@ public:
     DeclarationNode(unique_ptr<VariableNode> left) : lvalue{std::move(left)}, rvalue(make_unique<NumberNode>(0))
     {
     };
-    double evaluateNode(EnvironmentStack& scopes) const override;
+    Type evaluateNode(EnvironmentStack& scopes) const override;
     void debugPrint(int indentLevel) const override;
 
 private:
@@ -173,7 +186,7 @@ public:
         arguments{std::move(parameters)}
     {
     };
-    double evaluateNode(EnvironmentStack& scopes) const override;
+    Type evaluateNode(EnvironmentStack& scopes) const override;
     void debugPrint(int indentLevel) const override;
 
 private

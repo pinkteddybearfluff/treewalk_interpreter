@@ -22,7 +22,7 @@ bool EnvironmentStack::isEmpty()
     return false;
 }
 
-void EnvironmentStack::assign(string name, double value)
+void EnvironmentStack::assign(string name, Type value)
 {
     bool idenExists = false;
     for (int i = scopes.size() - 1; i >= 0; --i)
@@ -42,7 +42,7 @@ void EnvironmentStack::assign(string name, double value)
     }
 }
 
-void EnvironmentStack::declare(string name, double value)
+void EnvironmentStack::declare(string name, Type value)
 {
     for (int i = scopes.size() - 1; i >= 0; --i)
     {
@@ -54,7 +54,7 @@ void EnvironmentStack::declare(string name, double value)
     env[name] = value;
 }
 
-double EnvironmentStack::get(string name)
+Type EnvironmentStack::get(string name)
 {
     for (int i = scopes.size() - 1; i >= 0; --i)
     {
@@ -73,7 +73,13 @@ void EnvironmentStack::debugEnvPrint()
         std::cout << string(2 * i, ' ') << "Level " << i << ":\n";
         for (auto& var : env)
         {
-            std::cout << string(i * 2, ' ') << var.first << ": " << var.second << '\n';
+            std::cout << string(i * 2, ' ') << var.first << ": ";
+            if (std::holds_alternative<double>(var.second))
+                std::cout << std::get<double>(var.second) << '\n';
+            else if (std::holds_alternative<bool>(var.second))
+                std::cout << std::get<bool>(var.second) << '\n';
+            else if (std::holds_alternative<string>(var.second))
+                std::cout << std::get<string>(var.second) << '\n';
         }
         ++i;
     }

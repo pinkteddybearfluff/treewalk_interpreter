@@ -4,6 +4,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include "stacks.h"
 
 using std::string;
 using std::vector;
@@ -39,12 +40,13 @@ enum class TokenType
     While,
     Let,
     End,
+    String,
 };
 
 struct Token
 {
     TokenType type;
-    double value;
+    Type value;
     std::string name;
 };
 
@@ -68,6 +70,7 @@ private:
     Token charToToken(int ch);
 
     string getVarName();
+    string getString();
 };
 
 string getStringForType(TokenType type);
