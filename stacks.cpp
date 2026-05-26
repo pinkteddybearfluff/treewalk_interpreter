@@ -3,6 +3,13 @@
 #include <stdexcept>
 #include <iostream>
 
+RuntimeValue::Kind RuntimeValue::kind() const
+{
+    if (isString()) return Kind::String;
+    if (isNumber()) return Kind::Number;
+    if (isBoolean()) return Kind::Boolean;
+}
+
 void EnvironmentStack::popScope()
 {
     if (isEmpty())
@@ -27,7 +34,7 @@ bool EnvironmentStack::isEmpty()
     return false;
 }
 
-void EnvironmentStack::assign(string name, Type value)
+void EnvironmentStack::assign(string name, RuntimeValue value)
 {
     bool idenExists = false;
     for (int i = scopes.size() - 1; i >= 0; --i)
@@ -47,7 +54,7 @@ void EnvironmentStack::assign(string name, Type value)
     }
 }
 
-void EnvironmentStack::declare(string name, Type value)
+void EnvironmentStack::declare(string name, RuntimeValue value)
 {
     for (int i = scopes.size() - 1; i >= 0; --i)
     {
@@ -59,7 +66,7 @@ void EnvironmentStack::declare(string name, Type value)
     env[name] = value;
 }
 
-Type EnvironmentStack::get(string name)
+RuntimeValue EnvironmentStack::get(string name)
 {
     for (int i = scopes.size() - 1; i >= 0; --i)
     {
@@ -79,12 +86,12 @@ void EnvironmentStack::debugEnvPrint()
         for (auto& var : env)
         {
             std::cout << string(i * 2, ' ') << var.first << ": ";
-            if (std::holds_alternative<double>(var.second))
-                std::cout << std::get<double>(var.second) << '\n';
-            else if (std::holds_alternative<bool>(var.second))
-                std::cout << std::get<bool>(var.second) << '\n';
-            else if (std::holds_alternative<string>(var.second))
-                std::cout << std::get<string>(var.second) << '\n';
+            if (var.second.isNumber())
+                std::cout << var.second.asNumber() << '\n';
+            else if (var.second.isString())
+                std::cout << var.second.isString() << '\n';
+            else if (var.second.isBoolean())
+                std::cout << var.second.asBoolean() << '\n';
         }
         ++i;
     }

@@ -7,9 +7,9 @@ using std::cout;
 constexpr int IndentSize = 2;
 FunctionTable functions;
 
-Type NumberNode::evaluateNode(EnvironmentStack& scopes) const
+RuntimeValue NumberNode::evaluateNode(EnvironmentStack& scopes) const
 {
-    return value;
+    return RuntimeValue(value);
 }
 
 void NumberNode::debugPrint(int indentLevel) const
@@ -17,9 +17,9 @@ void NumberNode::debugPrint(int indentLevel) const
     cout << "Number(" << value << ")\n";
 }
 
-Type StringNode::evaluateNode(EnvironmentStack& scopes) const
+RuntimeValue StringNode::evaluateNode(EnvironmentStack& scopes) const
 {
-    return value;
+    return RuntimeValue(value);
 }
 
 void StringNode::debugPrint(int indentLevel) const
@@ -27,14 +27,14 @@ void StringNode::debugPrint(int indentLevel) const
     cout << "String(" << value << ")\n";
 }
 
-Type UnaryNode::evaluateNode(EnvironmentStack& scopes) const
+RuntimeValue UnaryNode::evaluateNode(EnvironmentStack& scopes) const
 {
-    Type value = child->evaluateNode(scopes);
-    if (std::holds_alternative<double>(value))
+    RuntimeValue value = child->evaluateNode(scopes);
+    if (value.isNumber())
     {
         if (op.type == TokenType::Minus)
         {
-            return -std::get<double>(value);
+            return RuntimeValue(-value.asNumber());
         }
         return value;
     }
@@ -48,60 +48,60 @@ void UnaryNode::debugPrint(int indentLevel) const
     child->debugPrint(indentLevel + 1);
 }
 
-Type BinaryNode::evaluateNode(EnvironmentStack& scopes) const
+RuntimeValue BinaryNode::evaluateNode(EnvironmentStack& scopes) const
 {
-    Type lval = left->evaluateNode(scopes);
-    Type rval = right->evaluateNode(scopes);
+    RuntimeValue lval = left->evaluateNode(scopes);
+    RuntimeValue rval = right->evaluateNode(scopes);
 
-    if (std::holds_alternative<double>(lval) && std::holds_alternative<double>(rval))
+    if (lval.isNumber() && rval.isNumber())
     {
-        const auto& lvalue = std::get<double>(lval);
-        const auto& rvalue = std::get<double>(rval);
+        const auto& lvalue = lval.asNumber();
+        const auto& rvalue = rval.asNumber();
         switch (this->op.type)
         {
         case TokenType::Plus:
-            return lvalue + rvalue;
+            return RuntimeValue(lvalue + rvalue);
         case TokenType::Minus:
-            return lvalue - rvalue;
+            return RuntimeValue(lvalue - rvalue);
         case TokenType::Multiply:
-            return lvalue * rvalue;
+            return RuntimeValue(lvalue * rvalue);
         case TokenType::Divide:
-            return lvalue / rvalue;
+            return RuntimeValue(lvalue / rvalue);
         case TokenType::Greater:
-            return lvalue > rvalue;
+            return RuntimeValue(lvalue > rvalue);
         case TokenType::GreaterEqual:
-            return lvalue >= rvalue;
+            return RuntimeValue(lvalue >= rvalue);
         case TokenType::LessEqual:
-            return lvalue <= rvalue;
+            return RuntimeValue(lvalue <= rvalue);
         case TokenType::Less:
-            return lvalue < rvalue;
+            return RuntimeValue(lvalue < rvalue);
         case TokenType::Equal:
-            return lvalue == rvalue;
+            return RuntimeValue(lvalue == rvalue);
         case TokenType::NotEqual:
-            return lvalue != rvalue;
+            return RuntimeValue(lvalue != rvalue);
         default: throw std::runtime_error("Unknown operator for operand of type double");
         }
     }
-    if (std::holds_alternative<string>(lval) && std::holds_alternative<string>(rval))
+    if (lval.isString() && rval.isString())
     {
-        const auto& lvalue = std::get<string>(lval);
-        const auto& rvalue = std::get<string>(rval);
+        const auto& lvalue = lval.asString();
+        const auto& rvalue = rval.asString();
         switch (this->op.type)
         {
         case TokenType::Plus:
-            return lvalue + rvalue;
+            return RuntimeValue(lvalue + rvalue);
         case TokenType::Equal:
-            return lvalue == rvalue;
+            return RuntimeValue(lvalue == rvalue);
         case TokenType::NotEqual:
-            return lvalue != rvalue;
+            return RuntimeValue(lvalue != rvalue);
         case TokenType::Less:
-            return lvalue < rvalue;
+            return RuntimeValue(lvalue < rvalue);
         case TokenType::LessEqual:
-            return lvalue <= rvalue;
+            return RuntimeValue(lvalue <= rvalue);
         case TokenType::Greater:
-            return lvalue > rvalue;
+            return RuntimeValue(lvalue > rvalue);
         case TokenType::GreaterEqual:
-            return lvalue >= rvalue;
+            return RuntimeValue(lvalue >= rvalue);
         default: throw std::runtime_error("Unknown operator for operand of type string");
         }
     }
@@ -117,7 +117,18 @@ void BinaryNode::debugPrint(int indentLevel) const
     right->debugPrint(indentLevel + 1);
 }
 
-Type VariableNode::evaluateNode(EnvironmentStack& scopes) const
+void ExpressionStatementNode::evaluateNode(EnvironmentStack& scopes) const
+{
+    expressionStmt->evaluateNode(scopes);
+}
+
+void ExpressionStatementNode::debugPrint(int indentLevel) const
+{
+    cout << string(indentLevel * IndentSize, ' ') << "ExpressionStatement\n";
+    expressionStmt->debugPrint(indentLevel + 1);
+}
+
+RuntimeValue VariableNode::evaluateNode(EnvironmentStack& scopes) const
 {
     return scopes.get(identifierName);
 }
@@ -127,11 +138,11 @@ void VariableNode::debugPrint(int i) const
     cout << "Variable(" << identifierName << ")\n";
 }
 
-Type AssignmentNode::evaluateNode(EnvironmentStack& scopes) const
+RuntimeValue AssignmentNode::evaluateNode(EnvironmentStack& scopes) const
 {
     string identifier = lvalue->getIdentifierName();
     scopes.get(identifier);
-    Type right = rvalue->evaluateNode(scopes);
+    RuntimeValue right = rvalue->evaluateNode(scopes);
     scopes.assign(identifier, right);
     return right;
 }
@@ -145,11 +156,10 @@ void AssignmentNode::debugPrint(int indentLevel) const
     rvalue->debugPrint(indentLevel + 1);
 }
 
-Type DeclarationNode::evaluateNode(EnvironmentStack& scopes) const
+void DeclarationNode::evaluateNode(EnvironmentStack& scopes) const
 {
-    Type right = rvalue->evaluateNode(scopes);
+    RuntimeValue right = rvalue->evaluateNode(scopes);
     scopes.declare(lvalue->getIdentifierName(), right);
-    return right;
 }
 
 void DeclarationNode::debugPrint(int indentLevel) const
@@ -161,13 +171,13 @@ void DeclarationNode::debugPrint(int indentLevel) const
     rvalue->debugPrint(indentLevel + 1);
 }
 
-Type IfNode::evaluateNode(EnvironmentStack& scopes) const
+void IfNode::evaluateNode(EnvironmentStack& scopes) const
 {
     scopes.pushScope();
-    Type truthVal = condition->evaluateNode(scopes);
-    if (std::holds_alternative<bool>(truthVal))
+    RuntimeValue truthVal = condition->evaluateNode(scopes);
+    if (truthVal.isBoolean())
     {
-        if (std::get<bool>(truthVal))
+        if (truthVal.asBoolean())
             thenStatement->evaluateNode(scopes);
 
         else
@@ -178,7 +188,6 @@ Type IfNode::evaluateNode(EnvironmentStack& scopes) const
     }
     else throw std::runtime_error("type for condition does not reduce to boolean");
     scopes.popScope();
-    return truthVal;
 }
 
 
@@ -198,18 +207,17 @@ void IfNode::debugPrint(int indentLevel) const
     }
 }
 
-Type WhileNode::evaluateNode(EnvironmentStack& scopes) const
+void WhileNode::evaluateNode(EnvironmentStack& scopes) const
 {
-    Type truthVal = condition->evaluateNode(scopes);
-    if (std::holds_alternative<bool>(truthVal))
-        while (std::get<bool>(condition->evaluateNode(scopes)))
+    RuntimeValue truthVal = condition->evaluateNode(scopes);
+    if (truthVal.isBoolean())
+        while (condition->evaluateNode(scopes).asBoolean())
         {
             scopes.pushScope();
             statement->evaluateNode(scopes);
             scopes.popScope();
         }
     else throw std::runtime_error("type for condition does not reduce to boolean");
-    return truthVal;
 }
 
 void WhileNode::debugPrint(int indentLevel) const
@@ -221,15 +229,14 @@ void WhileNode::debugPrint(int indentLevel) const
 }
 
 
-Type BlockNode::evaluateNode(EnvironmentStack& scopes) const
+void BlockNode::evaluateNode(EnvironmentStack& scopes) const
 {
     scopes.pushScope();
     for (auto& statement : statements)
     {
         statement->evaluateNode(scopes);
     }
-    // scopes.popScope();
-    return false;
+    scopes.popScope();
 }
 
 void BlockNode::debugPrint(int indentLevel) const
@@ -243,7 +250,7 @@ void BlockNode::debugPrint(int indentLevel) const
     cout << string(IndentSize * indentLevel, ' ') << "}\n";
 }
 
-Type FunctionCallNode::evaluateNode(EnvironmentStack& scopes) const
+RuntimeValue FunctionCallNode::evaluateNode(EnvironmentStack& scopes) const
 {
     auto iter = functions.find(identifierName);
     if (iter != functions.end())
@@ -255,7 +262,7 @@ Type FunctionCallNode::evaluateNode(EnvironmentStack& scopes) const
         {
             for (int i = 0; i < arguments.size(); ++i)
             {
-                env[parameters[i]] = arguments[i]->evaluateNode(scopes);
+                env[parameters[i]] = RuntimeValue(arguments[i]->evaluateNode(scopes));
             }
             localScopes.pushScope(env);
             try
@@ -267,27 +274,28 @@ Type FunctionCallNode::evaluateNode(EnvironmentStack& scopes) const
                 return r.value;
             }
             localScopes.popScope();
-            return 0.0;
+            return RuntimeValue(0.0);
         }
         validateArity(iter->second->getParametersSize(), arguments.size(), identifierName);
     }
     if (identifierName == "abs")
     {
         if (arguments.size() == 1)
-            return double(abs(std::get<double>(arguments[0]->evaluateNode(scopes))));
+            return RuntimeValue(static_cast<double>(abs(arguments[0]->evaluateNode(scopes).asNumber())));
         validateArity(1, arguments.size(), "abs");
     }
     if (identifierName == "max")
     {
         if (arguments.size() == 2)
-            return std::max(std::get<double>(arguments[0]->evaluateNode(scopes)),
-                            std::get<double>(arguments[1]->evaluateNode(scopes)));
+            return RuntimeValue(std::max(arguments[0]->evaluateNode(scopes).asNumber(),
+                                         arguments[1]->evaluateNode(scopes).asNumber()));
         validateArity(2, arguments.size(), "max");
     }
     if (identifierName == "min")
     {
         if (arguments.size() == 2)
-            return std::min(arguments[0]->evaluateNode(scopes), arguments[1]->evaluateNode(scopes));
+            return RuntimeValue((std::min(arguments[0]->evaluateNode(scopes).asNumber(),
+                                          arguments[1]->evaluateNode(scopes).asNumber())));
         validateArity(2, arguments.size(), "min");
     }
     if (identifierName == "avg")
@@ -296,9 +304,9 @@ Type FunctionCallNode::evaluateNode(EnvironmentStack& scopes) const
         {
             double avg = 0;
             for (const auto& argument : arguments)
-                avg += std::get<double>(argument->evaluateNode(scopes));
+                avg += argument->evaluateNode(scopes).asNumber();
             avg = avg / arguments.size();
-            return avg;
+            return RuntimeValue(avg);
         }
         validateArity(1, arguments.size(), "avg");
     }
@@ -308,17 +316,17 @@ Type FunctionCallNode::evaluateNode(EnvironmentStack& scopes) const
         {
             for (const auto& argument : arguments)
             {
-                Type arg = argument->evaluateNode(scopes);
-                if (std::holds_alternative<double>(arg))
-                    cout << std::get<double>(arg) << ' ';
-                else if (std::holds_alternative<string>(arg))
-                    cout << std::get<string>(arg) << ' ';
-                else if (std::holds_alternative<bool>(arg))
-                    cout << std::get<bool>(arg) << ' ';
+                RuntimeValue arg = argument->evaluateNode(scopes);
+                if (arg.isString())
+                    cout << arg.asString() << ' ';
+                else if (arg.isNumber())
+                    cout << arg.asNumber() << ' ';
+                else if (arg.isBoolean())
+                    cout << arg.asBoolean() << ' ';
             }
             cout << '\n';
         }
-        return true;
+        return RuntimeValue(0.0);
     }
     throw std::runtime_error("undefined function identifier");
 }
@@ -349,10 +357,9 @@ void validateArity(int expected_arguments, int given_arguments, string f_name)
     }
 }
 
-Type FunctionDeclarationNode::evaluateNode(EnvironmentStack& scopes) const
+void FunctionDeclarationNode::evaluateNode(EnvironmentStack& scopes) const
 {
     functions[identifier] = this;
-    return 0.0;
 }
 
 void FunctionDeclarationNode::debugPrint(int indentLevel) const
@@ -366,7 +373,7 @@ void FunctionDeclarationNode::debugPrint(int indentLevel) const
     body->debugPrint(indentLevel + 1);
 }
 
-Type ReturnNode::evaluateNode(EnvironmentStack& scopes) const
+void ReturnNode::evaluateNode(EnvironmentStack& scopes) const
 {
     throw ReturnSignal(returnStatement->evaluateNode(scopes));
 }
@@ -378,11 +385,10 @@ void ReturnNode::debugPrint(int indentLevel) const
     returnStatement->debugPrint(indentLevel + 1);
 }
 
-Type ProgramNode::evaluateNode(EnvironmentStack& scopes)
+void ProgramNode::evaluateNode(EnvironmentStack& scopes)
 {
     for (auto& stmt : statements)
         stmt->evaluateNode(scopes);
-    return 0.0;
 }
 
 void ProgramNode::debugPrint(int indentLevel)
@@ -393,4 +399,13 @@ void ProgramNode::debugPrint(int indentLevel)
     {
         cout << func.first << "\n";
     }
+}
+
+void EmptyNode::evaluateNode(EnvironmentStack& scopes) const
+{
+}
+
+void EmptyNode::debugPrint(int indentLevel) const
+{
+    cout << string(indentLevel * IndentSize, ' ') << "EmptyStatement\n";
 }

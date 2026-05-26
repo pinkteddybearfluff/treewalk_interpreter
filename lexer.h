@@ -48,7 +48,7 @@ enum class TokenType
 struct Token
 {
     TokenType type;
-    Type value;
+    std::variant<bool, double, string> literal;
     std::string name;
 };
 
@@ -73,7 +73,7 @@ private:
 
     string getVarName();
     string getString();
-    string consumeComments();
+    void consumeComments();
 };
 
 string getStringForType(TokenType type);

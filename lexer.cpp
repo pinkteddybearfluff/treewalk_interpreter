@@ -25,6 +25,18 @@ string TokenStream::getVarName()
     return name;
 }
 
+void TokenStream::consumeComments()
+{
+    string str;
+    int ch = is.get();
+    while (ch != '\n' && ch != EOF)
+    {
+        str += static_cast<char>(ch);
+        ch = is.get();
+    }
+    is.unget();
+}
+
 string TokenStream::getString()
 {
     string str;
@@ -65,7 +77,16 @@ Token TokenStream::readFromStream()
         is.unget();
         double value;
         is >> value;
-        return Token{TokenType::Number, static_cast<double>(value)};
+        return Token{TokenType::Number, value};
+    }
+    if (ch == '/')
+    {
+        if (is.peek() == '/')
+        {
+            is.get();
+            consumeComments();
+            return readFromStream();
+        }
     }
     if (ch == '"')
     {

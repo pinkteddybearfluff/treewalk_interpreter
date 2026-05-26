@@ -28,7 +28,7 @@ int main()
 
         TokenStream ts{is};
         int result{0};
-        vector<unique_ptr<ExpressionNode>> nodes;
+        vector<unique_ptr<StatementNode>> nodes;
         while (true)
         {
             nodes.push_back(parseStatement(ts));

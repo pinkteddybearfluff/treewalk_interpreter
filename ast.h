@@ -18,10 +18,19 @@ class FunctionDeclarationNode;
 using FunctionTable = std::map<string, const FunctionDeclarationNode*>;
 
 
+class StatementNode
+{
+public:
+    virtual void evaluateNode(EnvironmentStack& scopes) const =0;
+    virtual void debugPrint(int indentLevel) const = 0;
+    virtual ~StatementNode() = default;
+};
+
+
 class ExpressionNode
 {
 public:
-    virtual Type evaluateNode(EnvironmentStack& scopes) const =0;
+    virtual RuntimeValue evaluateNode(EnvironmentStack& scopes) const =0;
     virtual void debugPrint(int indentLevel) const =0;
     virtual ~ExpressionNode() = default;
 };
@@ -30,80 +39,17 @@ public:
 class ProgramNode
 {
 public:
-    Type evaluateNode(EnvironmentStack& scopes);
+    void evaluateNode(EnvironmentStack& scopes);
     void debugPrint(int indentLevel);
 
-    ProgramNode(vector<unique_ptr<ExpressionNode>> stmts) : statements{std::move(stmts)}
+    ProgramNode(vector<unique_ptr<StatementNode>> stmts) : statements{std::move(stmts)}
     {
     };
 
 private:
-    vector<unique_ptr<ExpressionNode>> statements;
+    vector<unique_ptr<StatementNode>> statements;
 };
 
-class IfNode : public ExpressionNode
-{
-public:
-    IfNode(unique_ptr<ExpressionNode> c, unique_ptr<ExpressionNode> thenBranch) : condition{std::move(c)},
-        thenStatement{std::move(thenBranch)}
-    {
-    };
-
-    IfNode(unique_ptr<ExpressionNode> c, unique_ptr<ExpressionNode> thenBranch,
-           unique_ptr<ExpressionNode> elseBranch)
-        : condition{std::move(c)}, thenStatement{std::move(thenBranch)}, elseStatement{std::move(elseBranch)}
-    {
-    };
-    Type evaluateNode(EnvironmentStack& scopes) const override;
-    void debugPrint(int indentLevel) const override;
-
-private:
-    unique_ptr<ExpressionNode> condition;
-    unique_ptr<ExpressionNode> thenStatement;
-    unique_ptr<ExpressionNode> elseStatement;
-};
-
-class WhileNode : public ExpressionNode
-{
-public:
-    WhileNode(unique_ptr<ExpressionNode> c, unique_ptr<ExpressionNode> whileBranch) : condition{std::move(c)},
-        statement{std::move(whileBranch)}
-    {
-    };
-    Type evaluateNode(EnvironmentStack& scopes) const override;
-    void debugPrint(int indentLevel) const override;
-
-private:
-    unique_ptr<ExpressionNode> condition;
-    unique_ptr<ExpressionNode> statement;
-};
-
-class BlockNode : public ExpressionNode
-{
-public:
-    BlockNode(vector<unique_ptr<ExpressionNode>> ss) : statements{std::move(ss)}
-    {
-    };
-    void debugPrint(int indentLevel) const override;
-    Type evaluateNode(EnvironmentStack& scopes) const override;
-
-private:
-    vector<unique_ptr<ExpressionNode>> statements;
-};
-
-class UnaryNode : public ExpressionNode
-{
-public:
-    UnaryNode(Token unOp, unique_ptr<ExpressionNode> n_node) : op{unOp}, child{std::move(n_node)}
-    {
-    };
-    Type evaluateNode(EnvironmentStack& scopes) const override;
-    void debugPrint(int indentLevel) const override;
-
-private:
-    Token op;
-    unique_ptr<ExpressionNode> child;
-};
 
 class NumberNode : public ExpressionNode
 {
@@ -111,7 +57,7 @@ public:
     explicit NumberNode(double v) : value{v}
     {
     };
-    Type evaluateNode(EnvironmentStack& scopes) const override;
+    RuntimeValue evaluateNode(EnvironmentStack& scopes) const override;
     void debugPrint(int indentLevel) const override;
 
 private:
@@ -125,7 +71,7 @@ public:
     {
     };
     void debugPrint(int indentLevel) const override;
-    Type evaluateNode(EnvironmentStack& scopes) const override;
+    RuntimeValue evaluateNode(EnvironmentStack& scopes) const override;
 
 private:
     string value;
@@ -138,7 +84,7 @@ public:
         : op{biOp}, left{std::move(leftNode)}, right{std::move(rightNode)}
     {
     };
-    Type evaluateNode(EnvironmentStack& scopes) const override;
+    RuntimeValue evaluateNode(EnvironmentStack& scopes) const override;
     void debugPrint(int indentLevel) const override;
 
 private:
@@ -147,13 +93,14 @@ private:
     unique_ptr<ExpressionNode> right;
 };
 
+
 class VariableNode : public ExpressionNode
 {
 public:
     explicit VariableNode(std::string name) : identifierName{name}
     {
     };
-    Type evaluateNode(EnvironmentStack& scopes) const override;
+    RuntimeValue evaluateNode(EnvironmentStack& scopes) const override;
     const string& getIdentifierName() const { return identifierName; };
     void debugPrint(int indentLevel) const override;
 
@@ -168,7 +115,7 @@ public:
         lvalue{std::move(left)}, rvalue{std::move(right)}
     {
     };
-    Type evaluateNode(EnvironmentStack& scopes) const override;
+    RuntimeValue evaluateNode(EnvironmentStack& scopes) const override;
     void debugPrint(int indentLevel) const override;
 
 private:
@@ -176,24 +123,6 @@ private:
     unique_ptr<ExpressionNode> rvalue;
 };
 
-class DeclarationNode : public ExpressionNode
-{
-public:
-    DeclarationNode(unique_ptr<VariableNode> left, unique_ptr<ExpressionNode> right) : lvalue{std::move(left)},
-        rvalue{std::move(right)}
-    {
-    };
-
-    DeclarationNode(unique_ptr<VariableNode> left) : lvalue{std::move(left)}, rvalue(make_unique<NumberNode>(0))
-    {
-    };
-    Type evaluateNode(EnvironmentStack& scopes) const override;
-    void debugPrint(int indentLevel) const override;
-
-private:
-    unique_ptr<VariableNode> lvalue;
-    unique_ptr<ExpressionNode> rvalue;
-};
 
 class FunctionCallNode : public ExpressionNode
 {
@@ -206,7 +135,7 @@ public:
         arguments{std::move(parameters)}
     {
     };
-    Type evaluateNode(EnvironmentStack& scopes) const override;
+    RuntimeValue evaluateNode(EnvironmentStack& scopes) const override;
     void debugPrint(int indentLevel) const override;
 
 private
@@ -215,17 +144,116 @@ private
     vector<unique_ptr<ExpressionNode>> arguments;
 };
 
-void validateArity(int expected_arguments, int given_arguments, string f_name);
 
-class FunctionDeclarationNode : public ExpressionNode
+class ExpressionStatementNode : public StatementNode
 {
 public:
-    FunctionDeclarationNode(string fname, vector<string> para, unique_ptr<ExpressionNode> b)
+    void debugPrint(int indentLevel) const override;
+    void evaluateNode(EnvironmentStack& scopes) const override;
+
+    ExpressionStatementNode(unique_ptr<ExpressionNode> expression) : expressionStmt{std::move(expression)}
+    {
+    };
+
+private:
+    unique_ptr<ExpressionNode> expressionStmt;
+};
+
+class DeclarationNode : public StatementNode
+{
+public:
+    DeclarationNode(unique_ptr<VariableNode> left, unique_ptr<ExpressionNode> right) : lvalue{std::move(left)},
+        rvalue{std::move(right)}
+    {
+    };
+
+    DeclarationNode(unique_ptr<VariableNode> left) : lvalue{std::move(left)}, rvalue(make_unique<NumberNode>(0))
+    {
+    };
+    void evaluateNode(EnvironmentStack& scopes) const override;
+    void debugPrint(int indentLevel) const override;
+
+private:
+    unique_ptr<VariableNode> lvalue;
+    unique_ptr<ExpressionNode> rvalue;
+};
+
+
+class IfNode : public StatementNode
+{
+public:
+    IfNode(unique_ptr<ExpressionNode> c, unique_ptr<StatementNode> thenBranch) : condition{std::move(c)},
+        thenStatement{std::move(thenBranch)}
+    {
+    };
+
+    IfNode(unique_ptr<ExpressionNode> c, unique_ptr<StatementNode> thenBranch,
+           unique_ptr<StatementNode> elseBranch)
+        : condition{std::move(c)}, thenStatement{std::move(thenBranch)}, elseStatement{std::move(elseBranch)}
+    {
+    };
+    void evaluateNode(EnvironmentStack& scopes) const override;
+    void debugPrint(int indentLevel) const override;
+
+private:
+    unique_ptr<ExpressionNode> condition;
+    unique_ptr<StatementNode> thenStatement;
+    unique_ptr<StatementNode> elseStatement;
+};
+
+class WhileNode : public StatementNode
+{
+public:
+    WhileNode(unique_ptr<ExpressionNode> c, unique_ptr<StatementNode> whileBranch) : condition{std::move(c)},
+        statement{std::move(whileBranch)}
+    {
+    };
+    void evaluateNode(EnvironmentStack& scopes) const override;
+    void debugPrint(int indentLevel) const override;
+
+private:
+    unique_ptr<ExpressionNode> condition;
+    unique_ptr<StatementNode> statement;
+};
+
+class BlockNode : public StatementNode
+{
+public:
+    BlockNode(vector<unique_ptr<StatementNode>> ss) : statements{std::move(ss)}
+    {
+    };
+    void debugPrint(int indentLevel) const override;
+    void evaluateNode(EnvironmentStack& scopes) const override;
+
+private:
+    vector<unique_ptr<StatementNode>> statements;
+};
+
+class UnaryNode : public ExpressionNode
+{
+public:
+    UnaryNode(Token unOp, unique_ptr<ExpressionNode> n_node) : op{unOp}, child{std::move(n_node)}
+    {
+    };
+    RuntimeValue evaluateNode(EnvironmentStack& scopes) const override;
+    void debugPrint(int indentLevel) const override;
+
+private:
+    Token op;
+    unique_ptr<ExpressionNode> child;
+};
+
+void validateArity(int expected_arguments, int given_arguments, string f_name);
+
+class FunctionDeclarationNode : public StatementNode
+{
+public:
+    FunctionDeclarationNode(string fname, vector<string> para, unique_ptr<StatementNode> b)
         : identifier{fname}, parameters{std::move(para)}, body{std::move(b)}
     {
     };
     void debugPrint(int indentLevel) const override;
-    Type evaluateNode(EnvironmentStack& scopes) const override;
+    void evaluateNode(EnvironmentStack& scopes) const override;
     int getParametersSize() const { return parameters.size(); };
     vector<string> getParameters() const { return parameters; };
     void evaluateBody(EnvironmentStack& scopes) const { body->evaluateNode(scopes); };
@@ -233,29 +261,38 @@ public:
 private:
     string identifier;
     vector<string> parameters;
-    unique_ptr<ExpressionNode> body;
+    unique_ptr<StatementNode> body;
 };
 
-class ReturnSignal
-{
-public:
-    ReturnSignal(Type val) : value{val}
-    {
-    };
-    Type value;
-};
 
-class ReturnNode : public ExpressionNode
+class ReturnNode : public StatementNode
 {
 public:
     ReturnNode(unique_ptr<ExpressionNode> statement) : returnStatement(std::move(statement))
     {
     };
     void debugPrint(int indentLevel) const override;
-    Type evaluateNode(EnvironmentStack& scopes) const override;
+    void evaluateNode(EnvironmentStack& scopes) const override;
 
 private:
     unique_ptr<ExpressionNode> returnStatement;
+};
+
+
+class ReturnSignal
+{
+public:
+    ReturnSignal(RuntimeValue val) : value{val}
+    {
+    };
+    RuntimeValue value;
+};
+
+class EmptyNode : public StatementNode
+{
+public:
+    void debugPrint(int indentLevel) const override;
+    void evaluateNode(EnvironmentStack& scopes) const override;
 };
 
 #endif //INTERPRETER_AST_H

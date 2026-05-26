@@ -22,12 +22,15 @@ void debugNextPeek(std::string_view parserName, const Token& t);
 void debugExit(std::string_view parserName);
 
 
-unique_ptr<ExpressionNode> parseStatement(TokenStream& ts);
-unique_ptr<ExpressionNode> parseIfStatement(TokenStream& ts);
-unique_ptr<ExpressionNode> parseWhileStatement(TokenStream& ts);
-unique_ptr<ExpressionNode> parseBlock(TokenStream& ts);
-unique_ptr<ExpressionNode> parseFunctionDeclaration(TokenStream& ts);
-unique_ptr<ExpressionNode> parseExpressionStatement(TokenStream& ts);
+unique_ptr<StatementNode> parseStatement(TokenStream& ts);
+unique_ptr<StatementNode> parseIfStatement(TokenStream& ts);
+unique_ptr<StatementNode> parseWhileStatement(TokenStream& ts);
+unique_ptr<StatementNode> parseBlock(TokenStream& ts);
+unique_ptr<StatementNode> parseFunctionDeclaration(TokenStream& ts);
+unique_ptr<StatementNode> parseDeclaration(TokenStream& ts);
+unique_ptr<StatementNode> parseExpressionStatement(TokenStream& ts);
+
+unique_ptr<ExpressionNode> parseAssignment(TokenStream& ts);
 unique_ptr<ExpressionNode> parseEquality(TokenStream& ts);
 unique_ptr<ExpressionNode> parseComparison(TokenStream& ts);
 unique_ptr<ExpressionNode> parseTerm(TokenStream& ts);

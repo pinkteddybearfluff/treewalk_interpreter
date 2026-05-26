@@ -10,10 +10,53 @@ using std::string;
 using std::vector;
 using std::map;
 
-using Type = std::variant<double, bool, string>;
+
+class RuntimeValue
+{
+public:
+    enum class Kind
+    {
+        Number,
+        String,
+        Boolean
+    };
+
+    using Type = std::variant<double, bool, string, std::monostate>;
+
+    RuntimeValue(Type d) : data{d}
+    {
+    };
+
+    RuntimeValue() : data{std::monostate{}}
+    {
+    };
+
+    [[nodiscard]] bool isNumber() const
+    {
+        return std::holds_alternative<double>(data);
+    };
+
+    [[nodiscard]] bool isString() const
+    {
+        return std::holds_alternative<string>(data);
+    };
+
+    [[nodiscard]] bool isBoolean() const
+    {
+        return std::holds_alternative<bool>(data);
+    };
+
+    [[nodiscard]] double asNumber() const { return std::get<double>(data); };
+    [[nodiscard]] const string& asString() const { return std::get<string>(data); };
+    [[nodiscard]] bool asBoolean() const { return std::get<bool>(data); };
+    Kind kind() const;
+
+private:
+    Type data;
+};
 
 constexpr bool DEBUG_ENV = true;
-using Environment = map<string, Type>;
+using Environment = map<string, RuntimeValue>;
 
 class EnvironmentStack
 {
@@ -26,9 +69,9 @@ public:
     void popScope();
     bool isEmpty();
 
-    Type get(string name);
-    void assign(string name, Type value);
-    void declare(string name, Type value);
+    RuntimeValue get(string name);
+    void assign(string name, RuntimeValue value);
+    void declare(string name, RuntimeValue value);
     void debugEnvPrint();
 
 private:
