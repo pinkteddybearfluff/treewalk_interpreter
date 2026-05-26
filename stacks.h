@@ -12,7 +12,7 @@ using std::map;
 
 using Type = std::variant<double, bool, string>;
 
-constexpr bool DEBUG_ENV = false;
+constexpr bool DEBUG_ENV = true;
 using Environment = map<string, Type>;
 
 class EnvironmentStack
@@ -22,6 +22,7 @@ public:
     {
     };
     void pushScope();
+    void pushScope(Environment& env);
     void popScope();
     bool isEmpty();
 

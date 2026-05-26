@@ -15,6 +15,11 @@ void EnvironmentStack::pushScope()
     scopes.push_back({});
 }
 
+void EnvironmentStack::pushScope(Environment& env)
+{
+    scopes.push_back(env);
+}
+
 bool EnvironmentStack::isEmpty()
 {
     if (scopes.size() <= 1)

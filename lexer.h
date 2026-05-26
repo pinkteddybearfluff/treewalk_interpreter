@@ -41,6 +41,8 @@ enum class TokenType
     Let,
     End,
     String,
+    Function,
+    Return
 };
 
 struct Token
@@ -71,6 +73,7 @@ private:
 
     string getVarName();
     string getString();
+    string consumeComments();
 };
 
 string getStringForType(TokenType type);

@@ -26,6 +26,7 @@ unique_ptr<ExpressionNode> parseStatement(TokenStream& ts);
 unique_ptr<ExpressionNode> parseIfStatement(TokenStream& ts);
 unique_ptr<ExpressionNode> parseWhileStatement(TokenStream& ts);
 unique_ptr<ExpressionNode> parseBlock(TokenStream& ts);
+unique_ptr<ExpressionNode> parseFunctionDeclaration(TokenStream& ts);
 unique_ptr<ExpressionNode> parseExpressionStatement(TokenStream& ts);
 unique_ptr<ExpressionNode> parseEquality(TokenStream& ts);
 unique_ptr<ExpressionNode> parseComparison(TokenStream& ts);

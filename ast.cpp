@@ -1,11 +1,11 @@
 #include "ast.h"
 #include <stdexcept>
 #include <iostream>
-#include <ratio>
 
 using std::cout;
 
 constexpr int IndentSize = 2;
+FunctionTable functions;
 
 Type NumberNode::evaluateNode(EnvironmentStack& scopes) const
 {
@@ -228,7 +228,7 @@ Type BlockNode::evaluateNode(EnvironmentStack& scopes) const
     {
         statement->evaluateNode(scopes);
     }
-    scopes.popScope();
+    // scopes.popScope();
     return false;
 }
 
@@ -245,6 +245,32 @@ void BlockNode::debugPrint(int indentLevel) const
 
 Type FunctionCallNode::evaluateNode(EnvironmentStack& scopes) const
 {
+    auto iter = functions.find(identifierName);
+    if (iter != functions.end())
+    {
+        EnvironmentStack localScopes;
+        Environment env;
+        vector<string> parameters = iter->second->getParameters();
+        if (arguments.size() == iter->second->getParametersSize())
+        {
+            for (int i = 0; i < arguments.size(); ++i)
+            {
+                env[parameters[i]] = arguments[i]->evaluateNode(scopes);
+            }
+            localScopes.pushScope(env);
+            try
+            {
+                iter->second->evaluateBody(localScopes);
+            }
+            catch (ReturnSignal& r)
+            {
+                return r.value;
+            }
+            localScopes.popScope();
+            return 0.0;
+        }
+        validateArity(iter->second->getParametersSize(), arguments.size(), identifierName);
+    }
     if (identifierName == "abs")
     {
         if (arguments.size() == 1)
@@ -294,6 +320,7 @@ Type FunctionCallNode::evaluateNode(EnvironmentStack& scopes) const
         }
         return true;
     }
+    throw std::runtime_error("undefined function identifier");
 }
 
 void FunctionCallNode::debugPrint(int indentLevel) const
@@ -322,3 +349,48 @@ void validateArity(int expected_arguments, int given_arguments, string f_name)
     }
 }
 
+Type FunctionDeclarationNode::evaluateNode(EnvironmentStack& scopes) const
+{
+    functions[identifier] = this;
+    return 0.0;
+}
+
+void FunctionDeclarationNode::debugPrint(int indentLevel) const
+{
+    cout << "FunctionDeclaration\n";
+    for (const auto& parameter : parameters)
+    {
+        cout << string(IndentSize * indentLevel, ' ') << parameter;
+    }
+    cout << string(IndentSize * indentLevel, ' ');
+    body->debugPrint(indentLevel + 1);
+}
+
+Type ReturnNode::evaluateNode(EnvironmentStack& scopes) const
+{
+    throw ReturnSignal(returnStatement->evaluateNode(scopes));
+}
+
+void ReturnNode::debugPrint(int indentLevel) const
+{
+    cout << "Return\n";
+    cout << string(IndentSize * indentLevel, ' ');
+    returnStatement->debugPrint(indentLevel + 1);
+}
+
+Type ProgramNode::evaluateNode(EnvironmentStack& scopes)
+{
+    for (auto& stmt : statements)
+        stmt->evaluateNode(scopes);
+    return 0.0;
+}
+
+void ProgramNode::debugPrint(int indentLevel)
+{
+    for (const auto& stmt : statements)
+        stmt->debugPrint(indentLevel + 1);
+    for (const auto& func : functions)
+    {
+        cout << func.first << "\n";
+    }
+}

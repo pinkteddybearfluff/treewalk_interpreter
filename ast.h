@@ -7,11 +7,16 @@
 
 #include "lexer.h"
 
-constexpr bool DEBUG_AST = true;
+
+constexpr bool DEBUG_AST = false;
 
 using std::unique_ptr;
 using std::make_unique;
 using std::string;
+
+class FunctionDeclarationNode;
+using FunctionTable = std::map<string, const FunctionDeclarationNode*>;
+
 
 class ExpressionNode
 {
@@ -19,6 +24,21 @@ public:
     virtual Type evaluateNode(EnvironmentStack& scopes) const =0;
     virtual void debugPrint(int indentLevel) const =0;
     virtual ~ExpressionNode() = default;
+};
+
+
+class ProgramNode
+{
+public:
+    Type evaluateNode(EnvironmentStack& scopes);
+    void debugPrint(int indentLevel);
+
+    ProgramNode(vector<unique_ptr<ExpressionNode>> stmts) : statements{std::move(stmts)}
+    {
+    };
+
+private:
+    vector<unique_ptr<ExpressionNode>> statements;
 };
 
 class IfNode : public ExpressionNode
@@ -196,5 +216,46 @@ private
 };
 
 void validateArity(int expected_arguments, int given_arguments, string f_name);
+
+class FunctionDeclarationNode : public ExpressionNode
+{
+public:
+    FunctionDeclarationNode(string fname, vector<string> para, unique_ptr<ExpressionNode> b)
+        : identifier{fname}, parameters{std::move(para)}, body{std::move(b)}
+    {
+    };
+    void debugPrint(int indentLevel) const override;
+    Type evaluateNode(EnvironmentStack& scopes) const override;
+    int getParametersSize() const { return parameters.size(); };
+    vector<string> getParameters() const { return parameters; };
+    void evaluateBody(EnvironmentStack& scopes) const { body->evaluateNode(scopes); };
+
+private:
+    string identifier;
+    vector<string> parameters;
+    unique_ptr<ExpressionNode> body;
+};
+
+class ReturnSignal
+{
+public:
+    ReturnSignal(Type val) : value{val}
+    {
+    };
+    Type value;
+};
+
+class ReturnNode : public ExpressionNode
+{
+public:
+    ReturnNode(unique_ptr<ExpressionNode> statement) : returnStatement(std::move(statement))
+    {
+    };
+    void debugPrint(int indentLevel) const override;
+    Type evaluateNode(EnvironmentStack& scopes) const override;
+
+private:
+    unique_ptr<ExpressionNode> returnStatement;
+};
 
 #endif //INTERPRETER_AST_H

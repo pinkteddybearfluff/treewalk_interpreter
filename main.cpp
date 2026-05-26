@@ -1,16 +1,17 @@
 #include <iostream>
 #include <sstream>
 #include <fstream>
-#include <string>
 #include "parser.h"
 #include "ast.h"
 #include "lexer.h"
 #include "stacks.h"
 
+// The Laven Language Lavender
 
 //TODO: 1) add better error handling with added string
 //TODO: 2) add user defined function
 //TODO: 3) add syntax highlighting
+//TODO: 4) add +=, -=, *= /=
 
 
 int main()
@@ -24,24 +25,25 @@ int main()
         }
 
         EnvironmentStack env;
-        // std::string input = "let g = 1;"
-        //     "if(g == 1){ let g=2;}";
-        // std::istringstream is(input);
+
         TokenStream ts{is};
         int result{0};
+        vector<unique_ptr<ExpressionNode>> nodes;
         while (true)
         {
-            unique_ptr<ExpressionNode> node = parseStatement(ts);
-            node->evaluateNode(env);
+            nodes.push_back(parseStatement(ts));
             // std::cout << "Result : " << result << std::endl;
-
-            if constexpr (DEBUG_AST) node->debugPrint(1);
-
             if (match(TokenType::End, ts))
             {
                 break;
             }
         }
+
+        unique_ptr<ProgramNode> program = make_unique<ProgramNode>(std::move(nodes));
+        program->evaluateNode(env);
+
+        if constexpr (DEBUG_AST)
+            program->debugPrint(0);
 
         if constexpr (DEBUG_ENV)
             env.debugEnvPrint();

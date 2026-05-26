@@ -38,6 +38,7 @@ string TokenStream::getString()
     return str;
 }
 
+
 Token TokenStream::getNextToken()
 {
     if (bufferCount == 2)
@@ -88,6 +89,8 @@ Token TokenStream::readFromStream()
         if (name == "else") return Token{TokenType::Else};
         if (name == "while") return Token{TokenType::While};
         if (name == "let") return Token{TokenType::Let};
+        if (name == "fn") return Token{TokenType::Function};
+        if (name == "return") return Token{TokenType::Return};
 
         return Token{TokenType::Identifier, 0.0, name};
     }
@@ -293,6 +296,12 @@ string getStringForType(TokenType type)
         return "While";
     case TokenType::Let:
         return "Let";
+    case TokenType::String:
+        return "String";
+    case TokenType::Function:
+        return "Function";
+    case TokenType::Return:
+        return "Return";
     }
 }
 
