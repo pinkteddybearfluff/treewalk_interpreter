@@ -112,6 +112,10 @@ Token TokenStream::readFromStream()
         if (name == "let") return Token{TokenType::Let};
         if (name == "fn") return Token{TokenType::Function};
         if (name == "return") return Token{TokenType::Return};
+        if (name == "true") return Token{TokenType::Boolean, true};
+        if (name == "false") return Token{TokenType::Boolean, false};
+        if (name == "break") return Token{TokenType::Break};
+        if (name == "continue") return Token{TokenType::Continue};
 
         return Token{TokenType::Identifier, 0.0, name};
     }
@@ -323,6 +327,12 @@ string getStringForType(TokenType type)
         return "Function";
     case TokenType::Return:
         return "Return";
+    case TokenType::Boolean:
+        return "Boolean";
+    case TokenType::Break:
+        return "Break";
+    case TokenType::Continue:
+        return "Continue";
     }
 }
 

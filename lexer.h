@@ -42,7 +42,10 @@ enum class TokenType
     End,
     String,
     Function,
-    Return
+    Return,
+    Boolean,
+    Break,
+    Continue,
 };
 
 struct Token

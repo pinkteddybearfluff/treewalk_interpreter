@@ -48,6 +48,16 @@ void UnaryNode::debugPrint(int indentLevel) const
     child->debugPrint(indentLevel + 1);
 }
 
+void BooleanNode::debugPrint(int indentLevel) const
+{
+    cout << "Boolean(" << ((value == true) ? "true" : "false") << ")\n";
+}
+
+RuntimeValue BooleanNode::evaluateNode(EnvironmentStack& scopes) const
+{
+    return RuntimeValue(value);
+}
+
 RuntimeValue BinaryNode::evaluateNode(EnvironmentStack& scopes) const
 {
     RuntimeValue lval = left->evaluateNode(scopes);
@@ -209,13 +219,25 @@ void IfNode::debugPrint(int indentLevel) const
 
 void WhileNode::evaluateNode(EnvironmentStack& scopes) const
 {
-    RuntimeValue truthVal = condition->evaluateNode(scopes);
-    if (truthVal.isBoolean())
+    if (condition->evaluateNode(scopes).isBoolean())
         while (condition->evaluateNode(scopes).asBoolean())
         {
-            scopes.pushScope();
-            statement->evaluateNode(scopes);
-            scopes.popScope();
+            try
+            {
+                scopes.pushScope();
+                statement->evaluateNode(scopes);
+                scopes.popScope();
+            }
+            catch (BreakSignal b)
+            {
+                scopes.popScope();
+                break;
+            }
+            catch (ContinueSignal c)
+            {
+                scopes.popScope();
+                continue;
+            }
         }
     else throw std::runtime_error("type for condition does not reduce to boolean");
 }
@@ -228,6 +250,25 @@ void WhileNode::debugPrint(int indentLevel) const
     statement->debugPrint(indentLevel + 1);
 }
 
+void BreakNode::evaluateNode(EnvironmentStack& scopes) const
+{
+    throw BreakSignal();
+}
+
+void BreakNode::debugPrint(int indentLevel) const
+{
+    cout << "Break\n";
+}
+
+void ContinueNode::evaluateNode(EnvironmentStack& scopes) const
+{
+    throw ContinueSignal();
+}
+
+void ContinueNode::debugPrint(int indentLevel) const
+{
+    cout << "Continue\n";
+}
 
 void BlockNode::evaluateNode(EnvironmentStack& scopes) const
 {
@@ -322,7 +363,12 @@ RuntimeValue FunctionCallNode::evaluateNode(EnvironmentStack& scopes) const
                 else if (arg.isNumber())
                     cout << arg.asNumber() << ' ';
                 else if (arg.isBoolean())
-                    cout << arg.asBoolean() << ' ';
+                {
+                    if (arg.asBoolean())
+                        cout << "true" << ' ';
+                    else
+                        cout << "false" << ' ';
+                }
             }
             cout << '\n';
         }
@@ -365,10 +411,12 @@ void FunctionDeclarationNode::evaluateNode(EnvironmentStack& scopes) const
 void FunctionDeclarationNode::debugPrint(int indentLevel) const
 {
     cout << "FunctionDeclaration\n";
+    cout << string(IndentSize * indentLevel, ' ') << "Parameters(";
     for (const auto& parameter : parameters)
     {
-        cout << string(IndentSize * indentLevel, ' ') << parameter;
+        cout << parameter;
     }
+    cout << ")\n";
     cout << string(IndentSize * indentLevel, ' ');
     body->debugPrint(indentLevel + 1);
 }

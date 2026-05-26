@@ -16,6 +16,7 @@
 
 int main()
 {
+    EnvironmentStack env;
     try
     {
         std::ifstream is("/home/wcosmo/Desktop/Projects/myLang_test/main.som");
@@ -45,6 +46,7 @@ int main()
         if constexpr (DEBUG_AST)
             program->debugPrint(0);
 
+
         if constexpr (DEBUG_ENV)
             env.debugEnvPrint();
 
@@ -53,5 +55,8 @@ int main()
     catch (const std::exception& e)
     {
         std::cerr << "error: " << e.what() << "\n";
+
+        if constexpr (DEBUG_ENV)
+            env.debugEnvPrint();
     }
 }

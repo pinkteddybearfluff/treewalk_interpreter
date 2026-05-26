@@ -77,6 +77,19 @@ private:
     string value;
 };
 
+class BooleanNode : public ExpressionNode
+{
+public:
+    BooleanNode(bool tv) : value{tv}
+    {
+    };
+    void debugPrint(int indentLevel) const override;
+    RuntimeValue evaluateNode(EnvironmentStack& scopes) const override;
+
+private:
+    bool value;
+};
+
 class BinaryNode : public ExpressionNode
 {
 public:
@@ -214,6 +227,35 @@ public:
 private:
     unique_ptr<ExpressionNode> condition;
     unique_ptr<StatementNode> statement;
+};
+
+class BreakNode : public StatementNode
+{
+public:
+    BreakNode()
+    {
+    }
+
+    void evaluateNode(EnvironmentStack& scopes) const override;
+    void debugPrint(int indentLevel) const override;
+};
+
+class BreakSignal
+{
+};
+
+class ContinueNode : public StatementNode
+{
+public:
+    ContinueNode()
+    {
+    };
+    void evaluateNode(EnvironmentStack& scopes) const override;
+    void debugPrint(int indentLevel) const override;
+};
+
+class ContinueSignal
+{
 };
 
 class BlockNode : public StatementNode

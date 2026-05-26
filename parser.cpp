@@ -96,8 +96,10 @@ unique_ptr<StatementNode> parseStatement(TokenStream& ts)
 
     if (check(TokenType::Let, ts))
     {
+        unique_ptr<StatementNode> stmt = parseDeclaration(ts);
         if constexpr (DEBUG_PARSER) debugExit(parserName);
-        return parseDeclaration(ts);
+        consume(TokenType::Semicolon, "expected ';' after declaration", ts);
+        return stmt;
     }
     if (check(TokenType::If, ts))
     {
@@ -108,6 +110,20 @@ unique_ptr<StatementNode> parseStatement(TokenStream& ts)
     {
         if constexpr (DEBUG_PARSER) debugExit(parserName);
         return parseWhileStatement(ts);
+    }
+    if (check(TokenType::Break, ts))
+    {
+        match(TokenType::Break, ts);
+        consume(TokenType::Semicolon, "expected ';' after break", ts);
+        if constexpr (DEBUG_PARSER) debugExit(parserName);
+        return make_unique<BreakNode>();
+    }
+    if (check(TokenType::Continue, ts))
+    {
+        match(TokenType::Continue, ts);
+        consume(TokenType::Semicolon, "expected ';' after continue", ts);
+        if constexpr (DEBUG_PARSER) debugExit(parserName);
+        return make_unique<ContinueNode>();
     }
     if (check(TokenType::OpenBrace, ts))
     {
@@ -389,6 +405,11 @@ unique_ptr<ExpressionNode> parsePrimary(TokenStream& ts)
     {
         if constexpr (DEBUG_PARSER) debugExit(parserName);
         return make_unique<StringNode>(std::get<string>(t.literal));
+    }
+    if (t.type == TokenType::Boolean)
+    {
+        if constexpr (DEBUG_PARSER) debugExit(parserName);
+        return make_unique<BooleanNode>(std::get<bool>(t.literal));
     }
     if (t.type == TokenType::Number)
     {
