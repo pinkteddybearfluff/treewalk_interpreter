@@ -37,6 +37,7 @@ unique_ptr<ExpressionNode> parseTerm(TokenStream& ts);
 unique_ptr<ExpressionNode> parseFactor(TokenStream& ts);
 unique_ptr<ExpressionNode> parseUnary(TokenStream& ts);
 unique_ptr<ExpressionNode> parsePrimary(TokenStream& ts);
+unique_ptr<ExpressionNode> parsePostFix(TokenStream& ts);
 
 
 #endif //INTERPRETER_PARSER_H

@@ -58,6 +58,51 @@ RuntimeValue BooleanNode::evaluateNode(EnvironmentStack& scopes) const
     return RuntimeValue(value);
 }
 
+RuntimeValue ArrayNode::evaluateNode(EnvironmentStack& scopes) const
+{
+    shared_ptr<vector<RuntimeValue>> arrayPtr = std::make_shared<vector<RuntimeValue>>();
+
+    for (int i = 0; i < value.size(); ++i)
+    {
+        arrayPtr->push_back(value[i]->evaluateNode(scopes));
+    }
+    return RuntimeValue(arrayPtr);
+}
+
+void ArrayNode::debugPrint(int indentLevel) const
+{
+    cout << "Array[\n";
+    for (auto& element : value)
+    {
+        cout << string(indentLevel * IndentSize, ' ');
+        element->debugPrint(indentLevel + 1);
+    }
+    cout << string(indentLevel * IndentSize, ' ') << "]\n";
+}
+
+RuntimeValue IndexNode::evaluateNode(EnvironmentStack& scopes) const
+{
+    if (operand->evaluateNode(scopes).isArray())
+        return operand->evaluateNode(scopes).asArrayPtr()->at(indexExp->evaluateNode(scopes).asNumber());
+    if (operand->evaluateNode(scopes).isString())
+        return RuntimeValue(
+            string(1, operand->evaluateNode(scopes).asString().at(indexExp->evaluateNode(scopes).asNumber())));
+}
+
+RuntimeValue& IndexNode::getReference(EnvironmentStack& scopes)
+{
+    return operand->evaluateNode(scopes).asArrayPtr()->at(indexExp->evaluateNode(scopes).asNumber());
+}
+
+
+void IndexNode::debugPrint(int indentLevel) const
+{
+    operand->debugPrint(indentLevel + 1);
+    cout << "[";
+    indexExp->debugPrint(indentLevel + 1);
+    cout << "]\n";
+}
+
 RuntimeValue BinaryNode::evaluateNode(EnvironmentStack& scopes) const
 {
     RuntimeValue lval = left->evaluateNode(scopes);
@@ -143,6 +188,11 @@ RuntimeValue VariableNode::evaluateNode(EnvironmentStack& scopes) const
     return scopes.get(identifierName);
 }
 
+RuntimeValue& VariableNode::getReference(EnvironmentStack& scopes)
+{
+    return scopes.get(identifierName);
+}
+
 void VariableNode::debugPrint(int i) const
 {
     cout << "Variable(" << identifierName << ")\n";
@@ -150,10 +200,15 @@ void VariableNode::debugPrint(int i) const
 
 RuntimeValue AssignmentNode::evaluateNode(EnvironmentStack& scopes) const
 {
-    string identifier = lvalue->getIdentifierName();
-    scopes.get(identifier);
     RuntimeValue right = rvalue->evaluateNode(scopes);
-    scopes.assign(identifier, right);
+    if (auto* var = dynamic_cast<VariableNode*>(lvalue.get()))
+    {
+        var->getReference(scopes) = right;
+    }
+    if (auto* indexElem = dynamic_cast<IndexNode*>(lvalue.get()))
+    {
+        indexElem->getReference(scopes) = right;
+    }
     return right;
 }
 
@@ -358,17 +413,7 @@ RuntimeValue FunctionCallNode::evaluateNode(EnvironmentStack& scopes) const
             for (const auto& argument : arguments)
             {
                 RuntimeValue arg = argument->evaluateNode(scopes);
-                if (arg.isString())
-                    cout << arg.asString() << ' ';
-                else if (arg.isNumber())
-                    cout << arg.asNumber() << ' ';
-                else if (arg.isBoolean())
-                {
-                    if (arg.asBoolean())
-                        cout << "true" << ' ';
-                    else
-                        cout << "false" << ' ';
-                }
+                printRuntimeValue(arg);
             }
             cout << '\n';
         }

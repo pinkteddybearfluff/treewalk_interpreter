@@ -8,7 +8,7 @@
 #include "lexer.h"
 
 
-constexpr bool DEBUG_AST = false;
+constexpr bool DEBUG_AST = true;
 
 using std::unique_ptr;
 using std::make_unique;
@@ -50,6 +50,20 @@ private:
     vector<unique_ptr<StatementNode>> statements;
 };
 
+class VariableNode : public ExpressionNode
+{
+public:
+    explicit VariableNode(std::string name) : identifierName{name}
+    {
+    };
+    RuntimeValue evaluateNode(EnvironmentStack& scopes) const override;
+    const string& getIdentifierName() const { return identifierName; };
+    RuntimeValue& getReference(EnvironmentStack& scopes);
+    void debugPrint(int indentLevel) const override;
+
+private:
+    string identifierName;
+};
 
 class NumberNode : public ExpressionNode
 {
@@ -90,6 +104,54 @@ private:
     bool value;
 };
 
+class ArrayNode : public ExpressionNode
+{
+public:
+    ArrayNode(vector<unique_ptr<ExpressionNode>> array) :
+        value{std::move(array)}
+    {
+    };
+    void debugPrint(int indentLevel) const override;
+    RuntimeValue evaluateNode(EnvironmentStack& scopes) const override;
+
+private:
+    vector<std::unique_ptr<ExpressionNode>> value;
+};
+
+class IndexNode : public ExpressionNode
+{
+public:
+    IndexNode(unique_ptr<ExpressionNode> Exp, unique_ptr<ExpressionNode> iExp) : operand{std::move(Exp)}
+        ,
+        indexExp{std::move(iExp)}
+    {
+    };
+    void debugPrint(int indentLevel) const override;
+    RuntimeValue evaluateNode(EnvironmentStack& scopes) const override;
+    RuntimeValue& getReference(EnvironmentStack& scopes);
+    RuntimeValue getIndex(EnvironmentStack& scopes) const { return indexExp->evaluateNode(scopes); };
+
+private:
+    unique_ptr<ExpressionNode> operand;
+    unique_ptr<ExpressionNode> indexExp;
+};
+
+class IndexAssignmentNode : public ExpressionNode
+{
+public:
+    IndexAssignmentNode(string name, unique_ptr<ExpressionNode> iExp, unique_ptr<ExpressionNode> right) :
+        identifier{name}, indexExp{std::move(iExp)}, rvalue{std::move(right)}
+    {
+    };
+    void debugPrint(int indentLevel) const override;
+    RuntimeValue evaluateNode(EnvironmentStack& scopes) const override;
+
+private:
+    string identifier;
+    unique_ptr<ExpressionNode> indexExp;
+    unique_ptr<ExpressionNode> rvalue;
+};
+
 class BinaryNode : public ExpressionNode
 {
 public:
@@ -107,24 +169,10 @@ private:
 };
 
 
-class VariableNode : public ExpressionNode
-{
-public:
-    explicit VariableNode(std::string name) : identifierName{name}
-    {
-    };
-    RuntimeValue evaluateNode(EnvironmentStack& scopes) const override;
-    const string& getIdentifierName() const { return identifierName; };
-    void debugPrint(int indentLevel) const override;
-
-private:
-    string identifierName;
-};
-
 class AssignmentNode : public ExpressionNode
 {
 public:
-    AssignmentNode(unique_ptr<VariableNode> left, unique_ptr<ExpressionNode> right) :
+    AssignmentNode(unique_ptr<ExpressionNode> left, unique_ptr<ExpressionNode> right) :
         lvalue{std::move(left)}, rvalue{std::move(right)}
     {
     };
@@ -132,7 +180,7 @@ public:
     void debugPrint(int indentLevel) const override;
 
 private:
-    unique_ptr<VariableNode> lvalue;
+    unique_ptr<ExpressionNode> lvalue;
     unique_ptr<ExpressionNode> rvalue;
 };
 

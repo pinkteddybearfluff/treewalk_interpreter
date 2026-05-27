@@ -8,6 +8,32 @@ RuntimeValue::Kind RuntimeValue::kind() const
     if (isString()) return Kind::String;
     if (isNumber()) return Kind::Number;
     if (isBoolean()) return Kind::Boolean;
+    if (isArray()) return Kind::Array;
+}
+
+void printRuntimeValue(const RuntimeValue& value)
+{
+    switch (value.kind())
+    {
+    case RuntimeValue::Kind::String:
+        std::cout << value.asString();
+        break;
+    case RuntimeValue::Kind::Boolean:
+        std::cout << (value.asBoolean() ? "true" : "false");
+        break;
+    case RuntimeValue::Kind::Number:
+        std::cout << value.asNumber();
+        break;
+    case RuntimeValue::Kind::Array:
+        std::cout << "[";
+        for (int i = 0; i < value.asArrayPtr()->size(); ++i)
+        {
+            if (i) std::cout << ", ";
+            printRuntimeValue(value.asArrayPtr()->at(i));
+        }
+        std::cout << "]";
+        break;
+    }
 }
 
 void EnvironmentStack::popScope()
@@ -66,7 +92,7 @@ void EnvironmentStack::declare(string name, RuntimeValue value)
     env[name] = value;
 }
 
-RuntimeValue EnvironmentStack::get(string name)
+RuntimeValue& EnvironmentStack::get(const string& name)
 {
     for (int i = scopes.size() - 1; i >= 0; --i)
     {
@@ -86,12 +112,8 @@ void EnvironmentStack::debugEnvPrint()
         for (auto& var : env)
         {
             std::cout << string(i * 2, ' ') << var.first << ": ";
-            if (var.second.isNumber())
-                std::cout << var.second.asNumber() << '\n';
-            else if (var.second.isString())
-                std::cout << var.second.isString() << '\n';
-            else if (var.second.isBoolean())
-                std::cout << var.second.asBoolean() << '\n';
+            printRuntimeValue(var.second);
+            std::cout << "\n";
         }
         ++i;
     }

@@ -202,6 +202,10 @@ Token TokenStream::charToToken(int ch)
         return Token{TokenType::OpenBrace};
     case '}':
         return Token{TokenType::CloseBrace};
+    case '[':
+        return Token{TokenType::OpenBracket};
+    case ']':
+        return Token{TokenType::CloseBracket};
     case ';':
         return Token{TokenType::Semicolon};
     case ',':
@@ -333,6 +337,10 @@ string getStringForType(TokenType type)
         return "Break";
     case TokenType::Continue:
         return "Continue";
+    case TokenType::OpenBracket:
+        return "OpenBracket";
+    case TokenType::CloseBracket:
+        return "CloseBracket";
     }
 }
 

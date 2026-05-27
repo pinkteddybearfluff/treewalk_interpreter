@@ -177,16 +177,20 @@ unique_ptr<StatementNode> parseExpressionStatement(TokenStream& ts)
 unique_ptr<ExpressionNode> parseAssignment(TokenStream& ts)
 {
     string parserName = "parseAssignment";
-    if (ts.peekNext().type == TokenType::Assign)
+    if constexpr (DEBUG_PARSER) debugEnter(parserName);
+    auto lhs = parseEquality(ts);
+    if (match(TokenType::Assign, ts))
     {
-        Token t = consume(TokenType::Identifier, "'=': left operand must be l-value", ts);
-
-        match(TokenType::Assign, ts);
-
-        if constexpr (DEBUG_PARSER) debugExit(parserName);
-        return make_unique<AssignmentNode>(make_unique<VariableNode>(t.name), parseEquality(ts));
+        auto rhs = parseEquality(ts);
+        if (dynamic_cast<VariableNode*>(lhs.get()) || dynamic_cast<IndexNode*>(lhs.get()))
+        {
+            if constexpr (DEBUG_PARSER) debugExit(parserName);
+            return make_unique<AssignmentNode>(std::move(lhs), std::move(rhs));
+        }
+        throw std::runtime_error("invalid lvalue");
     }
-    return parseEquality(ts);
+    if constexpr (DEBUG_PARSER) debugExit(parserName);
+    return lhs;
 }
 
 unique_ptr<StatementNode> parseIfStatement(TokenStream& ts)
@@ -356,7 +360,7 @@ unique_ptr<ExpressionNode> parseFactor(TokenStream& ts)
     string parserName = "parseFactor";
     if constexpr (DEBUG_PARSER) debugEnter(parserName);
 
-    unique_ptr<ExpressionNode> lval = parsePrimary(ts);
+    unique_ptr<ExpressionNode> lval = parseUnary(ts);
     while (true)
     {
         Token t = ts.peek();
@@ -367,7 +371,7 @@ unique_ptr<ExpressionNode> parseFactor(TokenStream& ts)
             t = ts.getNextToken();
             if constexpr (DEBUG_PARSER) debugConsume(parserName, t);
 
-            unique_ptr<ExpressionNode> rval = parsePrimary(ts);
+            unique_ptr<ExpressionNode> rval = parseUnary(ts);
             lval = make_unique<BinaryNode>(t, std::move(lval), std::move(rval));
         }
         else break;
@@ -389,8 +393,20 @@ unique_ptr<ExpressionNode> parseUnary(TokenStream& ts)
         return make_unique<UnaryNode>(t, parsePrimary(ts));
     }
 
+    auto expr = parsePostFix(ts);
     if constexpr (DEBUG_PARSER) debugExit(parserName);
-    return parsePrimary(ts);
+    return expr;
+}
+
+unique_ptr<ExpressionNode> parsePostFix(TokenStream& ts)
+{
+    auto expr = parsePrimary(ts);
+    while (match(TokenType::OpenBracket, ts))
+    {
+        expr = make_unique<IndexNode>(std::move(expr), parsePrimary(ts));
+        consume(TokenType::CloseBracket, "expected ']' after index", ts);
+    }
+    return expr;
 }
 
 unique_ptr<ExpressionNode> parsePrimary(TokenStream& ts)
@@ -415,6 +431,20 @@ unique_ptr<ExpressionNode> parsePrimary(TokenStream& ts)
     {
         if constexpr (DEBUG_PARSER) debugExit(parserName);
         return make_unique<NumberNode>(std::get<double>(t.literal));
+    }
+    if (t.type == TokenType::OpenBracket)
+    {
+        vector<unique_ptr<ExpressionNode>> elements;
+        while (true)
+        {
+            elements.push_back(parseAssignment(ts));
+            if (check(TokenType::CloseBracket, ts)) break;
+            if (check(TokenType::Comma, ts)) match(TokenType::Comma, ts);
+        }
+        consume(TokenType::CloseBracket, "Expected ']'", ts);
+
+        if constexpr (DEBUG_PARSER) debugExit(parserName);
+        return make_unique<ArrayNode>(std::move(elements));
     }
     if (t.type == TokenType::OpenParen)
     {
@@ -480,3 +510,4 @@ unique_ptr<ExpressionNode> parsePrimary(TokenStream& ts)
     // Invalid Operand error
     throw std::runtime_error("invalid operand" + getStringForType(t.type));
 }
+

@@ -31,6 +31,8 @@ enum class TokenType
     CloseParen,
     OpenBrace,
     CloseBrace,
+    OpenBracket,
+    CloseBracket,
     Comma,
     Identifier,
     Assign,
