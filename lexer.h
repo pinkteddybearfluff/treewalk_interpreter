@@ -40,6 +40,7 @@ enum class TokenType
     If,
     Else,
     While,
+    For,
     Let,
     End,
     String,
@@ -55,6 +56,7 @@ struct Token
     TokenType type;
     std::variant<bool, double, string> literal;
     std::string name;
+    int line;
 };
 
 
@@ -68,11 +70,13 @@ public:
     Token peek();
     Token peekNext();
     void debugPrintBuffer();
+    int getLineNo() const { return lineNo; };
 
 private:
     std::istream& is;
     Token buffer[2];
     int bufferCount{0};
+    int lineNo{0};
     Token readFromStream();
     Token charToToken(int ch);
 

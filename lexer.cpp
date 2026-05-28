@@ -55,6 +55,10 @@ void TokenStream::consumeMLComments()
             is.unget();
             return;
         }
+        if (ch == '\n')
+        {
+            ++lineNo;
+        }
     }
     is.unget();
 }
@@ -93,13 +97,22 @@ Token TokenStream::getNextToken()
 Token TokenStream::readFromStream()
 {
     int ch = is.get();
-    while (isspace(ch))ch = is.get();
+
+
+    while (isspace(ch))
+    {
+        if (ch == '\n')
+        {
+            ++lineNo;
+        }
+        ch = is.get();
+    }
     if (isdigit(ch))
     {
         is.unget();
         double value;
         is >> value;
-        return Token{TokenType::Number, value};
+        return Token{.type = TokenType::Number, .literal = value, .line = lineNo};
     }
     if (ch == '/')
     {
@@ -122,31 +135,32 @@ Token TokenStream::readFromStream()
         string str;
         str = getString();
         if (is.get() != '"') throw std::runtime_error("expected '\"' for string termination");
-        return Token{TokenType::String, str};
+        return Token{.type = TokenType::String, .literal = str, .line = lineNo};
     }
     if (!is)
     {
         if (is.eof())
         {
-            return Token{TokenType::End};
+            return Token{.type = TokenType::End, .line = lineNo};
         }
     }
     if (isalpha(ch))
     {
         is.unget();
         string name = getVarName();
-        if (name == "if") return Token{TokenType::If};
-        if (name == "else") return Token{TokenType::Else};
-        if (name == "while") return Token{TokenType::While};
-        if (name == "let") return Token{TokenType::Let};
-        if (name == "fn") return Token{TokenType::Function};
-        if (name == "return") return Token{TokenType::Return};
-        if (name == "true") return Token{TokenType::Boolean, true};
-        if (name == "false") return Token{TokenType::Boolean, false};
-        if (name == "break") return Token{TokenType::Break};
-        if (name == "continue") return Token{TokenType::Continue};
+        if (name == "if") return Token{.type = TokenType::If, .line = lineNo};
+        if (name == "else") return Token{.type = TokenType::Else, .line = lineNo};
+        if (name == "while") return Token{.type = TokenType::While, .line = lineNo};
+        if (name == "let") return Token{.type = TokenType::Let, .line = lineNo};
+        if (name == "fn") return Token{.type = TokenType::Function, .line = lineNo};
+        if (name == "return") return Token{.type = TokenType::Return, .line = lineNo};
+        if (name == "true") return Token{.type = TokenType::Boolean, .literal = true, .line = lineNo};
+        if (name == "false") return Token{.type = TokenType::Boolean, .literal = false, .line = lineNo};
+        if (name == "break") return Token{.type = TokenType::Break, .line = lineNo};
+        if (name == "continue") return Token{.type = TokenType::Continue, .line = lineNo};
+        if (name == "for") return Token{.type = TokenType::For, .line = lineNo};
 
-        return Token{TokenType::Identifier, 0.0, name};
+        return Token{.type = TokenType::Identifier, .name = name, .line = lineNo};
     }
     return charToToken(ch);
 }
@@ -216,38 +230,38 @@ Token TokenStream::charToToken(int ch)
     switch (ch)
     {
     case '+':
-        return Token{TokenType::Plus};
+        return Token{.type = TokenType::Plus, .line = lineNo};
     case '-':
-        return Token{TokenType::Minus};
+        return Token{.type = TokenType::Minus, .line = lineNo};
     case '*':
-        return Token{TokenType::Multiply};
+        return Token{.type = TokenType::Multiply, .line = lineNo};
     case '/':
-        return Token{TokenType::Divide};
+        return Token{.type = TokenType::Divide, .line = lineNo};
     case '(':
-        return Token{TokenType::OpenParen};
+        return Token{.type = TokenType::OpenParen, .line = lineNo};
     case ')':
-        return Token{TokenType::CloseParen};
+        return Token{.type = TokenType::CloseParen, .line = lineNo};
     case '{':
-        return Token{TokenType::OpenBrace};
+        return Token{.type = TokenType::OpenBrace, .line = lineNo};
     case '}':
-        return Token{TokenType::CloseBrace};
+        return Token{.type = TokenType::CloseBrace, .line = lineNo};
     case '[':
-        return Token{TokenType::OpenBracket};
+        return Token{.type = TokenType::OpenBracket, .line = lineNo};
     case ']':
-        return Token{TokenType::CloseBracket};
+        return Token{.type = TokenType::CloseBracket, .line = lineNo};
     case ';':
-        return Token{TokenType::Semicolon};
+        return Token{.type = TokenType::Semicolon, .line = lineNo};
     case ',':
-        return Token{TokenType::Comma};
+        return Token{.type = TokenType::Comma, .line = lineNo};
     case '=':
         {
             int ch2 = is.peek();
             if (static_cast<char>(ch2) == '=')
             {
                 is.get();
-                return Token{TokenType::Equal};
+                return Token{.type = TokenType::Equal, .line = lineNo};
             }
-            return Token{TokenType::Assign};
+            return Token{.type = TokenType::Assign, .line = lineNo};
         }
     case '<':
         {
@@ -256,9 +270,9 @@ Token TokenStream::charToToken(int ch)
             {
                 char ch3;
                 is >> ch3;
-                return Token{TokenType::LessEqual};
+                return Token{.type = TokenType::LessEqual, .line = lineNo};
             }
-            return Token{TokenType::Less};
+            return Token{.type = TokenType::Less, .line = lineNo};
         }
     case '>':
         {
@@ -266,9 +280,9 @@ Token TokenStream::charToToken(int ch)
             if (static_cast<char>(ch2) == '=')
             {
                 is.get();
-                return Token{TokenType::GreaterEqual};
+                return Token{.type = TokenType::GreaterEqual, .line = lineNo};
             }
-            return Token{TokenType::Greater};
+            return Token{.type = TokenType::Greater, .line = lineNo};
         }
     case '!':
         {
@@ -276,7 +290,7 @@ Token TokenStream::charToToken(int ch)
             if (static_cast<char>(ch2) == '=')
             {
                 is.get();
-                return Token{TokenType::NotEqual};
+                return Token{.type = TokenType::NotEqual, .line = lineNo};
             }
         }
     default:
@@ -370,6 +384,8 @@ string getStringForType(TokenType type)
         return "OpenBracket";
     case TokenType::CloseBracket:
         return "CloseBracket";
+    case TokenType::For:
+        return "For";
     }
 }
 

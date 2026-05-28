@@ -310,6 +310,34 @@ void WhileNode::debugPrint(int indentLevel) const
     statement->debugPrint(indentLevel + 1);
 }
 
+void ForNode::evaluateNode(EnvironmentStack& scopes) const
+{
+    scopes.pushScope();
+    if (initializer)
+        initializer->evaluateNode(scopes);
+
+    while (true)
+    {
+        if (condition)
+            if (!condition->evaluateNode(scopes).asBoolean())
+                break;
+
+        statement->evaluateNode(scopes);
+        if (expr) expr->evaluateNode(scopes);
+    }
+    scopes.popScope();
+}
+
+void ForNode::debugPrint(int indentLevel) const
+{
+    cout << "For(";
+    if (initializer) initializer->debugPrint(indentLevel + 1);
+    if (condition) condition->debugPrint(indentLevel + 1);
+    if (expr) expr->debugPrint(indentLevel + 1);
+    cout << ")";
+    statement->debugPrint(indentLevel + 1);
+}
+
 void BreakNode::evaluateNode(EnvironmentStack& scopes) const
 {
     throw BreakSignal();
@@ -422,6 +450,7 @@ RuntimeValue FunctionCallNode::evaluateNode(EnvironmentStack& scopes) const
                 {
                     RuntimeValue arg = argument->evaluateNode(scopes);
                     printRuntimeValue(arg);
+                    cout << " ";
                 }
                 cout << '\n';
             }
@@ -513,14 +542,17 @@ void FunctionDeclarationNode::debugPrint(int indentLevel) const
 
 void ReturnNode::evaluateNode(EnvironmentStack& scopes) const
 {
-    throw ReturnSignal(returnStatement->evaluateNode(scopes));
+    if (returnStatement)
+        throw ReturnSignal(returnStatement->evaluateNode(scopes));
+    throw ReturnSignal(RuntimeValue(0.0));
 }
 
 void ReturnNode::debugPrint(int indentLevel) const
 {
     cout << "Return\n";
     cout << string(IndentSize * indentLevel, ' ');
-    returnStatement->debugPrint(indentLevel + 1);
+    if (returnStatement)
+        returnStatement->debugPrint(indentLevel + 1);
 }
 
 void ProgramNode::evaluateNode(EnvironmentStack& scopes)

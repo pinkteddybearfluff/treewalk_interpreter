@@ -100,7 +100,7 @@ RuntimeValue& EnvironmentStack::get(const string& name)
         if (iter != scopes[i].end())
             return iter->second;
     }
-    throw std::runtime_error("Undefined variable");
+    throw std::runtime_error("Undefined variable " + name);
 }
 
 void EnvironmentStack::debugEnvPrint()

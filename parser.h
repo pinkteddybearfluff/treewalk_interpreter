@@ -25,6 +25,8 @@ void debugExit(std::string_view parserName);
 unique_ptr<StatementNode> parseStatement(TokenStream& ts);
 unique_ptr<StatementNode> parseIfStatement(TokenStream& ts);
 unique_ptr<StatementNode> parseWhileStatement(TokenStream& ts);
+unique_ptr<StatementNode> parseForStatement(TokenStream& ts);
+
 unique_ptr<StatementNode> parseBlock(TokenStream& ts);
 unique_ptr<StatementNode> parseFunctionDeclaration(TokenStream& ts);
 unique_ptr<StatementNode> parseDeclaration(TokenStream& ts);

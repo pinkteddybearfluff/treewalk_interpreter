@@ -17,27 +17,23 @@
 int main()
 {
     EnvironmentStack env;
+    string file = "/home/wcosmo/Desktop/Projects/myLang_test/main.som";
+    std::ifstream is(file);
+    if (!is.is_open())
+    {
+        throw std::runtime_error("Failed to open file");
+    }
+
+
+    TokenStream ts{is};
     try
     {
-        std::ifstream is("/home/wcosmo/Desktop/Projects/myLang_test/main.som");
-        if (!is.is_open())
-        {
-            throw std::runtime_error("Failed to open file");
-        }
-
-        EnvironmentStack env;
-
-        TokenStream ts{is};
         int result{0};
         vector<unique_ptr<StatementNode>> nodes;
-        while (true)
+
+        while (!check(TokenType::End, ts))
         {
             nodes.push_back(parseStatement(ts));
-            // std::cout << "Result : " << result << std::endl;
-            if (match(TokenType::End, ts))
-            {
-                break;
-            }
         }
 
         unique_ptr<ProgramNode> program = make_unique<ProgramNode>(std::move(nodes));
@@ -54,7 +50,7 @@ int main()
     }
     catch (const std::exception& e)
     {
-        std::cerr << "error: " << e.what() << "\n";
+        std::cerr << "Line " << ts.getLineNo() << " error: " << e.what() << "\n";
 
         if constexpr (DEBUG_ENV)
             env.debugEnvPrint();

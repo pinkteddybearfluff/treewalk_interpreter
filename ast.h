@@ -8,7 +8,7 @@
 #include "lexer.h"
 
 
-constexpr bool DEBUG_AST = true;
+constexpr bool DEBUG_AST = false;
 
 using std::unique_ptr;
 using std::make_unique;
@@ -270,6 +270,24 @@ private:
     unique_ptr<StatementNode> statement;
 };
 
+class ForNode : public StatementNode
+{
+public:
+    ForNode(unique_ptr<StatementNode> stmt, unique_ptr<StatementNode> init = nullptr,
+            unique_ptr<ExpressionNode> cond = nullptr, unique_ptr<ExpressionNode> expr = nullptr) :
+        initializer{std::move(init)}, condition{std::move(cond)}, expr{std::move(expr)}, statement{std::move(stmt)}
+    {
+    };
+    void evaluateNode(EnvironmentStack& scopes) const override;
+    void debugPrint(int indentLevel) const override;
+
+private:
+    unique_ptr<StatementNode> initializer;
+    unique_ptr<ExpressionNode> condition;
+    unique_ptr<ExpressionNode> expr;
+    unique_ptr<StatementNode> statement;
+};
+
 class BreakNode : public StatementNode
 {
 public:
@@ -351,7 +369,7 @@ private:
 class ReturnNode : public StatementNode
 {
 public:
-    ReturnNode(unique_ptr<ExpressionNode> statement) : returnStatement(std::move(statement))
+    ReturnNode(unique_ptr<ExpressionNode> statement = nullptr) : returnStatement(std::move(statement))
     {
     };
     void debugPrint(int indentLevel) const override;

@@ -17,6 +17,9 @@
 using std::cin;
 using std::cout;
 
+int functionLevel{0};
+int loopLevel{0};
+
 // check: Is the next token of this type?
 // match: If next token matches, consume it and return true.
 // consume: Consume token of this type or throw error.
@@ -111,19 +114,32 @@ unique_ptr<StatementNode> parseStatement(TokenStream& ts)
         if constexpr (DEBUG_PARSER) debugExit(parserName);
         return parseWhileStatement(ts);
     }
+    if (check(TokenType::For, ts))
+    {
+        if constexpr (DEBUG_PARSER) debugExit(parserName);
+        return parseForStatement(ts);
+    }
     if (check(TokenType::Break, ts))
     {
-        match(TokenType::Break, ts);
-        consume(TokenType::Semicolon, "expected ';' after break", ts);
-        if constexpr (DEBUG_PARSER) debugExit(parserName);
-        return make_unique<BreakNode>();
+        if (loopLevel > 0)
+        {
+            match(TokenType::Break, ts);
+            consume(TokenType::Semicolon, "expected ';' after break", ts);
+            if constexpr (DEBUG_PARSER) debugExit(parserName);
+            return make_unique<BreakNode>();
+        }
+        throw std::runtime_error("unexpected break statement");
     }
     if (check(TokenType::Continue, ts))
     {
-        match(TokenType::Continue, ts);
-        consume(TokenType::Semicolon, "expected ';' after continue", ts);
-        if constexpr (DEBUG_PARSER) debugExit(parserName);
-        return make_unique<ContinueNode>();
+        if (loopLevel > 0)
+        {
+            match(TokenType::Continue, ts);
+            consume(TokenType::Semicolon, "expected ';' after continue", ts);
+            if constexpr (DEBUG_PARSER) debugExit(parserName);
+            return make_unique<ContinueNode>();
+        }
+        throw std::runtime_error("unexpected continue statement");
     }
     if (check(TokenType::OpenBrace, ts))
     {
@@ -137,14 +153,19 @@ unique_ptr<StatementNode> parseStatement(TokenStream& ts)
     }
     if (check(TokenType::Return, ts))
     {
-        match(TokenType::Return, ts);
-        unique_ptr<ExpressionNode> returnNode = parseEquality(ts);
-        consume(TokenType::Semicolon, "expected ';' after expression", ts);
-        return make_unique<ReturnNode>(std::move(returnNode));
+        if (functionLevel > 0)
+        {
+            match(TokenType::Return, ts);
+            if (match(TokenType::Semicolon, ts)) return make_unique<ReturnNode>();
+            unique_ptr<ExpressionNode> returnNode = parseEquality(ts);
+            consume(TokenType::Semicolon, "expected ';' after expression", ts);
+            return make_unique<ReturnNode>(std::move(returnNode));
+        }
+        throw std::runtime_error("unexpected return statement");
     }
 
     unique_ptr<StatementNode> expressionNode = parseExpressionStatement(ts);
-    consume(TokenType::Semicolon, "expected ';' after statement", ts);
+    consume(TokenType::Semicolon, "expected ';' after statement" + std::to_string(ts.getLineNo()), ts);
     if constexpr (DEBUG_PARSER) debugExit(parserName);
     return expressionNode;
 }
@@ -216,6 +237,7 @@ unique_ptr<StatementNode> parseIfStatement(TokenStream& ts)
 
 unique_ptr<StatementNode> parseWhileStatement(TokenStream& ts)
 {
+    ++loopLevel;
     string parserName = "parseWhileStatement";
     match(TokenType::While, ts);
     consume(TokenType::OpenParen, "expected '(' after while", ts);
@@ -225,9 +247,74 @@ unique_ptr<StatementNode> parseWhileStatement(TokenStream& ts)
     unique_ptr<StatementNode> statement = parseStatement(ts);
 
     if constexpr (DEBUG_PARSER) debugExit(parserName);
+    --loopLevel;
     return make_unique<WhileNode>(std::move(condition), std::move(statement));
 }
 
+unique_ptr<StatementNode> parseForStatement(TokenStream& ts)
+{
+    ++loopLevel;
+    string parserName = "parseFor";
+    if constexpr (DEBUG_PARSER) debugEnter(parserName);
+    match(TokenType::For, ts);
+    consume(TokenType::OpenParen, "expected '(' after for", ts);
+    unique_ptr<StatementNode> init;
+    unique_ptr<ExpressionNode> cond;
+    unique_ptr<ExpressionNode> expr;
+    if (match(TokenType::Semicolon, ts))
+    {
+        if (match(TokenType::Semicolon, ts))
+        {
+            if (match(TokenType::CloseParen, ts))
+            {
+                --loopLevel;
+                return make_unique<ForNode>(parseStatement(ts));
+            }
+            expr = parseAssignment(ts);
+            consume(TokenType::CloseParen, "expected ')' after for", ts);
+            --loopLevel;
+            return make_unique<ForNode>(parseStatement(ts), nullptr, nullptr, std::move(expr));
+        }
+        cond = parseAssignment(ts);
+        consume(TokenType::Semicolon, "expected ';' after condition", ts);
+        if (match(TokenType::CloseParen, ts))
+        {
+            --loopLevel;
+            return make_unique<ForNode>(parseStatement(ts), nullptr, std::move(cond));
+        }
+        expr = parseAssignment(ts);
+        consume(TokenType::CloseParen, "expected ')' after for", ts);
+        --loopLevel;
+        return make_unique<ForNode>(parseStatement(ts), nullptr, std::move(cond), std::move(expr));
+    }
+    if (match(TokenType::Let, ts))
+        init = parseDeclaration(ts);
+    else init = parseExpressionStatement(ts);
+    consume(TokenType::Semicolon, "expected semicolon", ts);
+    if (match(TokenType::Semicolon, ts))
+    {
+        if (match(TokenType::CloseParen, ts))
+        {
+            --loopLevel;
+            return make_unique<ForNode>(parseStatement(ts), std::move(init));
+        }
+        expr = parseAssignment(ts);
+        consume(TokenType::CloseParen, "expected ')' after for", ts);
+        --loopLevel;
+        return make_unique<ForNode>(parseStatement(ts), std::move(init), nullptr, std::move(expr));
+    }
+    cond = parseAssignment(ts);
+    consume(TokenType::Semicolon, "expected semicolon", ts);
+    if (match(TokenType::CloseParen, ts))
+    {
+        --loopLevel;
+        return make_unique<ForNode>(parseStatement(ts), std::move(init), std::move(cond));
+    }
+    expr = parseAssignment(ts);
+    consume(TokenType::CloseParen, "expected ')' after for", ts);
+    --loopLevel;
+    return make_unique<ForNode>(parseStatement(ts), std::move(init), std::move(cond), std::move(expr));
+}
 
 unique_ptr<StatementNode> parseBlock(TokenStream& ts)
 {
@@ -248,30 +335,32 @@ unique_ptr<StatementNode> parseBlock(TokenStream& ts)
 
 unique_ptr<StatementNode> parseFunctionDeclaration(TokenStream& ts)
 {
+    ++functionLevel;
     string parserName = "parseFunctionDeclaration";
     if constexpr (DEBUG_PARSER) debugEnter(parserName);
     match(TokenType::Function, ts);
     Token t = consume(TokenType::Identifier, "expected identifier after fn", ts);
     consume(TokenType::OpenParen, "expected '(' after function name", ts);
-    if (check(TokenType::CloseParen, ts))
-    {
-    }
     vector<string> parameters;
 
-    while (true)
+    if (!match(TokenType::CloseParen, ts))
     {
-        Token ti = consume(TokenType::Identifier, "expected parameter", ts);
-        parameters.push_back(ti.name);
-        if (match(TokenType::CloseParen, ts))
+        while (true)
         {
-            break;
+            Token ti = consume(TokenType::Identifier, "expected parameter", ts);
+            parameters.push_back(ti.name);
+            if (match(TokenType::CloseParen, ts))
+            {
+                break;
+            }
+            match(TokenType::Comma, ts);
         }
-        match(TokenType::Comma, ts);
     }
 
     unique_ptr<StatementNode> body = parseBlock(ts);
 
     if constexpr (DEBUG_PARSER) debugExit(parserName);
+    --functionLevel;
     return make_unique<FunctionDeclarationNode>(t.name, parameters, std::move(body));
 }
 
@@ -403,7 +492,7 @@ unique_ptr<ExpressionNode> parsePostFix(TokenStream& ts)
     auto expr = parsePrimary(ts);
     while (match(TokenType::OpenBracket, ts))
     {
-        expr = make_unique<IndexNode>(std::move(expr), parsePrimary(ts));
+        expr = make_unique<IndexNode>(std::move(expr), parseEquality(ts));
         consume(TokenType::CloseBracket, "expected ']' after index", ts);
     }
     return expr;
@@ -442,7 +531,7 @@ unique_ptr<ExpressionNode> parsePrimary(TokenStream& ts)
             if (check(TokenType::CloseBracket, ts)) break;
             if (check(TokenType::Comma, ts)) match(TokenType::Comma, ts);
         }
-        consume(TokenType::CloseBracket, "Expected ']'", ts);
+        consume(TokenType::CloseBracket, "Expected ']'" + string(1, static_cast<char>(ts.getLineNo())), ts);
 
         if constexpr (DEBUG_PARSER) debugExit(parserName);
         return make_unique<ArrayNode>(std::move(elements));
