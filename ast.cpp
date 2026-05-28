@@ -318,12 +318,26 @@ void ForNode::evaluateNode(EnvironmentStack& scopes) const
 
     while (true)
     {
-        if (condition)
-            if (!condition->evaluateNode(scopes).asBoolean())
-                break;
+        try
+        {
+            if (condition)
+                if (!condition->evaluateNode(scopes).asBoolean())
+                    break;
 
-        statement->evaluateNode(scopes);
-        if (expr) expr->evaluateNode(scopes);
+            statement->evaluateNode(scopes);
+            if (expr) expr->evaluateNode(scopes);
+        }
+        catch (BreakSignal b)
+        {
+            scopes.popScope();
+            break;
+        }
+        catch (ContinueSignal c)
+        {
+            if (expr) expr->evaluateNode(scopes);
+            scopes.popScope();
+            continue;
+        }
     }
     scopes.popScope();
 }

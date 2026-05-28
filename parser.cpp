@@ -121,11 +121,13 @@ unique_ptr<StatementNode> parseStatement(TokenStream& ts)
     }
     if (check(TokenType::Break, ts))
     {
+        cout << loopLevel << std::endl;
         if (loopLevel > 0)
         {
             match(TokenType::Break, ts);
             consume(TokenType::Semicolon, "expected ';' after break", ts);
             if constexpr (DEBUG_PARSER) debugExit(parserName);
+            --loopLevel;
             return make_unique<BreakNode>();
         }
         throw std::runtime_error("unexpected break statement");
@@ -159,6 +161,7 @@ unique_ptr<StatementNode> parseStatement(TokenStream& ts)
             if (match(TokenType::Semicolon, ts)) return make_unique<ReturnNode>();
             unique_ptr<ExpressionNode> returnNode = parseEquality(ts);
             consume(TokenType::Semicolon, "expected ';' after expression", ts);
+            --functionLevel;
             return make_unique<ReturnNode>(std::move(returnNode));
         }
         throw std::runtime_error("unexpected return statement");
@@ -254,6 +257,8 @@ unique_ptr<StatementNode> parseWhileStatement(TokenStream& ts)
 unique_ptr<StatementNode> parseForStatement(TokenStream& ts)
 {
     ++loopLevel;
+    cout << loopLevel << std::endl;
+
     string parserName = "parseFor";
     if constexpr (DEBUG_PARSER) debugEnter(parserName);
     match(TokenType::For, ts);
@@ -261,31 +266,36 @@ unique_ptr<StatementNode> parseForStatement(TokenStream& ts)
     unique_ptr<StatementNode> init;
     unique_ptr<ExpressionNode> cond;
     unique_ptr<ExpressionNode> expr;
+    unique_ptr<StatementNode> body;
     if (match(TokenType::Semicolon, ts))
     {
         if (match(TokenType::Semicolon, ts))
         {
             if (match(TokenType::CloseParen, ts))
             {
+                body = parseStatement(ts);
                 --loopLevel;
-                return make_unique<ForNode>(parseStatement(ts));
+                return make_unique<ForNode>(std::move(body));
             }
             expr = parseAssignment(ts);
             consume(TokenType::CloseParen, "expected ')' after for", ts);
+            body = parseStatement(ts);
             --loopLevel;
-            return make_unique<ForNode>(parseStatement(ts), nullptr, nullptr, std::move(expr));
+            return make_unique<ForNode>(std::move(body), nullptr, nullptr, std::move(expr));
         }
         cond = parseAssignment(ts);
         consume(TokenType::Semicolon, "expected ';' after condition", ts);
         if (match(TokenType::CloseParen, ts))
         {
+            body = parseStatement(ts);
             --loopLevel;
-            return make_unique<ForNode>(parseStatement(ts), nullptr, std::move(cond));
+            return make_unique<ForNode>(std::move(body), nullptr, std::move(cond));
         }
         expr = parseAssignment(ts);
         consume(TokenType::CloseParen, "expected ')' after for", ts);
+        body = parseStatement(ts);
         --loopLevel;
-        return make_unique<ForNode>(parseStatement(ts), nullptr, std::move(cond), std::move(expr));
+        return make_unique<ForNode>(std::move(body), nullptr, std::move(cond), std::move(expr));
     }
     if (match(TokenType::Let, ts))
         init = parseDeclaration(ts);
@@ -295,25 +305,29 @@ unique_ptr<StatementNode> parseForStatement(TokenStream& ts)
     {
         if (match(TokenType::CloseParen, ts))
         {
+            body = parseStatement(ts);
             --loopLevel;
-            return make_unique<ForNode>(parseStatement(ts), std::move(init));
+            return make_unique<ForNode>(std::move(body), std::move(init));
         }
         expr = parseAssignment(ts);
         consume(TokenType::CloseParen, "expected ')' after for", ts);
+        body = parseStatement(ts);
         --loopLevel;
-        return make_unique<ForNode>(parseStatement(ts), std::move(init), nullptr, std::move(expr));
+        return make_unique<ForNode>(std::move(body), std::move(init), nullptr, std::move(expr));
     }
     cond = parseAssignment(ts);
     consume(TokenType::Semicolon, "expected semicolon", ts);
     if (match(TokenType::CloseParen, ts))
     {
+        body = parseStatement(ts);
         --loopLevel;
-        return make_unique<ForNode>(parseStatement(ts), std::move(init), std::move(cond));
+        return make_unique<ForNode>(std::move(body), std::move(init), std::move(cond));
     }
     expr = parseAssignment(ts);
     consume(TokenType::CloseParen, "expected ')' after for", ts);
+    body = parseStatement(ts);
     --loopLevel;
-    return make_unique<ForNode>(parseStatement(ts), std::move(init), std::move(cond), std::move(expr));
+    return make_unique<ForNode>(std::move(body), std::move(init), std::move(cond), std::move(expr));
 }
 
 unique_ptr<StatementNode> parseBlock(TokenStream& ts)

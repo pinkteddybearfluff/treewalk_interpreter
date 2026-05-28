@@ -8,8 +8,7 @@
 
 // The Laven Language Lavender
 
-//TODO: 1) add better error handling with added string
-//TODO: 2) add user defined function
+//TODO: 1) add better error handling with ParserError LexerError Runtime Evaluation Error
 //TODO: 3) add syntax highlighting
 //TODO: 4) add +=, -=, *= /=
 
