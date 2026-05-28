@@ -79,6 +79,7 @@ private:
     string getVarName();
     string getString();
     void consumeComments();
+    void consumeMLComments();
 };
 
 string getStringForType(TokenType type);

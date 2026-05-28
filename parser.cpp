@@ -435,6 +435,7 @@ unique_ptr<ExpressionNode> parsePrimary(TokenStream& ts)
     if (t.type == TokenType::OpenBracket)
     {
         vector<unique_ptr<ExpressionNode>> elements;
+        if (match(TokenType::CloseBracket, ts)) return make_unique<ArrayNode>();
         while (true)
         {
             elements.push_back(parseAssignment(ts));
@@ -465,7 +466,7 @@ unique_ptr<ExpressionNode> parsePrimary(TokenStream& ts)
             if (match(TokenType::CloseParen, ts))
             {
                 if constexpr (DEBUG_PARSER) debugExit(parserName);
-                return make_unique<FunctionCallNode>(name);
+                return make_unique<FunctionCallNode>(make_unique<VariableNode>(name));
             }
             // Error Case 5 : func(;
             if (match(TokenType::Semicolon, ts)) throw std::runtime_error("expected ')' before ';'");
@@ -483,7 +484,7 @@ unique_ptr<ExpressionNode> parsePrimary(TokenStream& ts)
                 if (match(TokenType::CloseParen, ts))
                 {
                     if constexpr (DEBUG_LEXER) debugExit(parserName);
-                    return make_unique<FunctionCallNode>(name, std::move(argumentNodes));
+                    return make_unique<FunctionCallNode>(make_unique<VariableNode>(name), std::move(argumentNodes));
                 }
 
                 // Error Case 4: func(Exp, Exp;

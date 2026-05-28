@@ -37,6 +37,28 @@ void TokenStream::consumeComments()
     is.unget();
 }
 
+void TokenStream::consumeMLComments()
+{
+    string str;
+    int ch = is.get();
+    while (true)
+    {
+        str += static_cast<char>(ch);
+        ch = is.get();
+        if (ch == '*' && is.peek() == '/')
+        {
+            is.get();
+            return;
+        }
+        if (ch == EOF)
+        {
+            is.unget();
+            return;
+        }
+    }
+    is.unget();
+}
+
 string TokenStream::getString()
 {
     string str;
@@ -87,7 +109,14 @@ Token TokenStream::readFromStream()
             consumeComments();
             return readFromStream();
         }
+        if (is.peek() == '*')
+        {
+            is.get();
+            consumeMLComments();
+            return readFromStream();
+        }
     }
+
     if (ch == '"')
     {
         string str;

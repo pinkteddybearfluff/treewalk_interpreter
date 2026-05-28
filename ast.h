@@ -59,6 +59,7 @@ public:
     RuntimeValue evaluateNode(EnvironmentStack& scopes) const override;
     const string& getIdentifierName() const { return identifierName; };
     RuntimeValue& getReference(EnvironmentStack& scopes);
+    // RuntimeValue& getFuncReference(FunctionTable& function_table);
     void debugPrint(int indentLevel) const override;
 
 private:
@@ -111,6 +112,10 @@ public:
         value{std::move(array)}
     {
     };
+
+    ArrayNode() : value{}
+    {
+    };
     void debugPrint(int indentLevel) const override;
     RuntimeValue evaluateNode(EnvironmentStack& scopes) const override;
 
@@ -136,21 +141,6 @@ private:
     unique_ptr<ExpressionNode> indexExp;
 };
 
-class IndexAssignmentNode : public ExpressionNode
-{
-public:
-    IndexAssignmentNode(string name, unique_ptr<ExpressionNode> iExp, unique_ptr<ExpressionNode> right) :
-        identifier{name}, indexExp{std::move(iExp)}, rvalue{std::move(right)}
-    {
-    };
-    void debugPrint(int indentLevel) const override;
-    RuntimeValue evaluateNode(EnvironmentStack& scopes) const override;
-
-private:
-    string identifier;
-    unique_ptr<ExpressionNode> indexExp;
-    unique_ptr<ExpressionNode> rvalue;
-};
 
 class BinaryNode : public ExpressionNode
 {
@@ -188,20 +178,23 @@ private:
 class FunctionCallNode : public ExpressionNode
 {
 public:
-    explicit FunctionCallNode(string name) : identifierName{name}
+    explicit FunctionCallNode(unique_ptr<ExpressionNode> var) : identifier{std::move(var)}
     {
     };
 
-    FunctionCallNode(string name, vector<unique_ptr<ExpressionNode>> parameters) : identifierName{name},
-        arguments{std::move(parameters)}
+    FunctionCallNode(unique_ptr<ExpressionNode> var, vector<unique_ptr<ExpressionNode>> args) : identifier{
+            std::move(var)
+        },
+        arguments{std::move(args)}
     {
     };
     RuntimeValue evaluateNode(EnvironmentStack& scopes) const override;
+    // vector<unique_ptr<ExpressionNode>>& getReference(EnvironmentStack& scopes) const;
     void debugPrint(int indentLevel) const override;
 
 private
 :
-    string identifierName;
+    unique_ptr<ExpressionNode> identifier;
     vector<unique_ptr<ExpressionNode>> arguments;
 };
 

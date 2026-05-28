@@ -193,6 +193,11 @@ RuntimeValue& VariableNode::getReference(EnvironmentStack& scopes)
     return scopes.get(identifierName);
 }
 
+// RuntimeValue& VariableNode::getFuncReference(FunctionTable& function_table)
+// {
+//     return
+// }
+
 void VariableNode::debugPrint(int i) const
 {
     cout << "Variable(" << identifierName << ")\n";
@@ -348,83 +353,123 @@ void BlockNode::debugPrint(int indentLevel) const
 
 RuntimeValue FunctionCallNode::evaluateNode(EnvironmentStack& scopes) const
 {
-    auto iter = functions.find(identifierName);
-    if (iter != functions.end())
+    if (auto* func = dynamic_cast<VariableNode*>(identifier.get()))
     {
-        EnvironmentStack localScopes;
-        Environment env;
-        vector<string> parameters = iter->second->getParameters();
-        if (arguments.size() == iter->second->getParametersSize())
+        string identifierName = func->getIdentifierName();
+        auto iter = functions.find(identifierName);
+        if (iter != functions.end())
         {
-            for (int i = 0; i < arguments.size(); ++i)
+            EnvironmentStack localScopes;
+            Environment env;
+            vector<string> parameters = iter->second->getParameters();
+            if (arguments.size() == iter->second->getParametersSize())
             {
-                env[parameters[i]] = RuntimeValue(arguments[i]->evaluateNode(scopes));
+                for (int i = 0; i < arguments.size(); ++i)
+                {
+                    env[parameters[i]] = RuntimeValue(arguments[i]->evaluateNode(scopes));
+                }
+                localScopes.pushScope(env);
+                try
+                {
+                    iter->second->evaluateBody(localScopes);
+                }
+                catch (ReturnSignal& r)
+                {
+                    return r.value;
+                }
+                localScopes.popScope();
+                return RuntimeValue(0.0);
             }
-            localScopes.pushScope(env);
-            try
+            validateArity(iter->second->getParametersSize(), arguments.size(), identifierName);
+        }
+        if (identifierName == "abs")
+        {
+            if (arguments.size() == 1)
+                return RuntimeValue(static_cast<double>(abs(arguments[0]->evaluateNode(scopes).asNumber())));
+            validateArity(1, arguments.size(), "abs");
+        }
+        if (identifierName == "max")
+        {
+            if (arguments.size() == 2)
+                return RuntimeValue(std::max(arguments[0]->evaluateNode(scopes).asNumber(),
+                                             arguments[1]->evaluateNode(scopes).asNumber()));
+            validateArity(2, arguments.size(), "max");
+        }
+        if (identifierName == "min")
+        {
+            if (arguments.size() == 2)
+                return RuntimeValue((std::min(arguments[0]->evaluateNode(scopes).asNumber(),
+                                              arguments[1]->evaluateNode(scopes).asNumber())));
+            validateArity(2, arguments.size(), "min");
+        }
+        if (identifierName == "avg")
+        {
+            if (!arguments.empty())
             {
-                iter->second->evaluateBody(localScopes);
+                double avg = 0;
+                for (const auto& argument : arguments)
+                    avg += argument->evaluateNode(scopes).asNumber();
+                avg = avg / arguments.size();
+                return RuntimeValue(avg);
             }
-            catch (ReturnSignal& r)
+            validateArity(1, arguments.size(), "avg");
+        }
+        if (identifierName == "print")
+        {
+            if (!arguments.empty())
             {
-                return r.value;
+                for (const auto& argument : arguments)
+                {
+                    RuntimeValue arg = argument->evaluateNode(scopes);
+                    printRuntimeValue(arg);
+                }
+                cout << '\n';
             }
-            localScopes.popScope();
             return RuntimeValue(0.0);
         }
-        validateArity(iter->second->getParametersSize(), arguments.size(), identifierName);
-    }
-    if (identifierName == "abs")
-    {
-        if (arguments.size() == 1)
-            return RuntimeValue(static_cast<double>(abs(arguments[0]->evaluateNode(scopes).asNumber())));
-        validateArity(1, arguments.size(), "abs");
-    }
-    if (identifierName == "max")
-    {
-        if (arguments.size() == 2)
-            return RuntimeValue(std::max(arguments[0]->evaluateNode(scopes).asNumber(),
-                                         arguments[1]->evaluateNode(scopes).asNumber()));
-        validateArity(2, arguments.size(), "max");
-    }
-    if (identifierName == "min")
-    {
-        if (arguments.size() == 2)
-            return RuntimeValue((std::min(arguments[0]->evaluateNode(scopes).asNumber(),
-                                          arguments[1]->evaluateNode(scopes).asNumber())));
-        validateArity(2, arguments.size(), "min");
-    }
-    if (identifierName == "avg")
-    {
-        if (!arguments.empty())
+        if (identifierName == "size")
         {
-            double avg = 0;
-            for (const auto& argument : arguments)
-                avg += argument->evaluateNode(scopes).asNumber();
-            avg = avg / arguments.size();
-            return RuntimeValue(avg);
-        }
-        validateArity(1, arguments.size(), "avg");
-    }
-    if (identifierName == "print")
-    {
-        if (!arguments.empty())
-        {
-            for (const auto& argument : arguments)
+            if (arguments.size() == 1)
             {
-                RuntimeValue arg = argument->evaluateNode(scopes);
-                printRuntimeValue(arg);
+                RuntimeValue arg = arguments[0]->evaluateNode(scopes);
+                if (arg.isArray())
+                    return RuntimeValue(static_cast<double>(arg.asArrayPtr()->size()));
+                if (arg.isString())
+                    return RuntimeValue(static_cast<double>(arg.asString().size()));
+                throw std::runtime_error("invalid operand for size method");
             }
-            cout << '\n';
+            validateArity(1, arguments.size(), "size");
         }
-        return RuntimeValue(0.0);
+        if (identifierName == "push")
+        {
+            if (arguments.size() == 2)
+            {
+                if (auto* var = dynamic_cast<VariableNode*>(arguments[0].get()))
+                {
+                    RuntimeValue arr = var->getReference(scopes);
+                    if (arr.isArray())
+                    {
+                        RuntimeValue value = arguments[1]->evaluateNode(scopes);
+                        arr.asArrayPtr()->push_back(value);
+                        return RuntimeValue(0.0);
+                    }
+                    throw std::runtime_error("invalid operand for push");
+                }
+            }
+        }
     }
     throw std::runtime_error("undefined function identifier");
 }
 
+// vector<unique_ptr<ExpressionNode>>& FunctionCallNode::getReference(EnvironmentStack& scopes) const
+// {
+//     return arguments;
+// }
+
 void FunctionCallNode::debugPrint(int indentLevel) const
 {
-    cout << "Function(" << identifierName << ")\n";
+    if (auto* func = dynamic_cast<VariableNode*>(identifier.get()))
+        cout << "Function(" << func->getIdentifierName() << ")\n";
     for (const auto& argument : arguments)
     {
         cout << string(IndentSize * indentLevel, ' ');
