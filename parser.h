@@ -6,9 +6,16 @@
 #include <string_view>
 
 
-inline int parserDepth = 0;
 constexpr bool DEBUG_PARSER = false;
 
+class ParserError : public std::runtime_error
+{
+public:
+    ParserError(const string& msg, int lineNo) : std::runtime_error{msg}, line{lineNo}
+    {
+    };
+    int line;
+};
 
 bool match(TokenType tkType, TokenStream& ts);
 bool check(TokenType tkType, TokenStream& ts);

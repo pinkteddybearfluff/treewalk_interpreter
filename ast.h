@@ -3,12 +3,14 @@
 
 #include <memory>
 #include <string>
+#include <format>
+#include <utility>
 #include "stacks.h"
 
 #include "lexer.h"
 
 
-constexpr bool DEBUG_AST = false;
+constexpr bool DEBUG_AST = true;
 
 using std::unique_ptr;
 using std::make_unique;
@@ -17,6 +19,74 @@ using std::string;
 class FunctionDeclarationNode;
 using FunctionTable = std::map<string, const FunctionDeclarationNode*>;
 
+
+enum class ErrorCategory
+{
+    NameError, ZeroDivisionError, TypeError, RedeclarationError, IndexError, ArityError, ValueError
+};
+
+
+enum class ErrorKind
+{
+    //NameError
+    VariableUndefined,
+    FunctionUndefined,
+
+    //TypeError
+    InvalidIndexType,
+    OperandTypeMismatch,
+    UnsupportedOperation,
+    NotCallable,
+    NotSubscriptable,
+
+    //ArityError
+    TooFewArguments,
+    TooManyArguments,
+
+    //ZeroDivisionError
+    DivisionByZero,
+
+    //IndexError
+    IndexOutOfBounds,
+
+    //RedeclarationError
+    VariableRedeclaration,
+    FunctionRedeclaration,
+};
+
+string getErrorCategoryString(ErrorCategory category);
+string getErrorKindString(ErrorKind kind);
+
+struct Diagnostic
+{
+    ErrorCategory category;
+    ErrorKind kind;
+
+    string identifier;
+
+    string primary;
+    string secondary;
+
+    int currentLine{-1};
+    int previousLine{-1};
+
+    int expected{-1};
+    int actual{-1};
+};
+
+class UnsupportedOperation
+{
+};
+
+class RuntimeError : public std::runtime_error
+{
+public:
+    RuntimeError(const string& msg, Diagnostic diagnostic) : std::runtime_error{msg}, diagnostic{std::move(diagnostic)}
+    {
+    };
+
+    Diagnostic diagnostic;
+};
 
 class StatementNode
 {
@@ -33,6 +103,12 @@ public:
     virtual RuntimeValue evaluateNode(EnvironmentStack& scopes) const =0;
     virtual void debugPrint(int indentLevel) const =0;
     virtual ~ExpressionNode() = default;
+    [[nodiscard]] virtual bool isAssignmentTarget() const { return false; };
+    [[nodiscard]] virtual bool isDeclarationTarget() const { return false; };
+    [[nodiscard]] virtual string description() const { return "Expression"; };
+
+protected:
+    int line{0};
 };
 
 
@@ -53,63 +129,87 @@ private:
 class VariableNode : public ExpressionNode
 {
 public:
-    explicit VariableNode(std::string name) : identifierName{name}
+    VariableNode(std::string name, int line) : identifierName{name}, line{line}
     {
     };
     RuntimeValue evaluateNode(EnvironmentStack& scopes) const override;
-    const string& getIdentifierName() const { return identifierName; };
+    [[nodiscard]] const string& getIdentifierName() const { return identifierName; };
     RuntimeValue& getReference(EnvironmentStack& scopes);
     // RuntimeValue& getFuncReference(FunctionTable& function_table);
     void debugPrint(int indentLevel) const override;
+    [[nodiscard]] bool isAssignmentTarget() const override { return true; };
+    [[nodiscard]] bool isDeclarationTarget() const override { return true; };
+    [[nodiscard]] string description() const override { return "variable"; };
 
 private:
     string identifierName;
+
+protected:
+    int line;
 };
 
 class NumberNode : public ExpressionNode
 {
 public:
-    explicit NumberNode(double v) : value{v}
+    NumberNode(double v, int lineNo) : value{v}, line{lineNo}
     {
     };
     RuntimeValue evaluateNode(EnvironmentStack& scopes) const override;
     void debugPrint(int indentLevel) const override;
+    [[nodiscard]] bool isAssignmentTarget() const override { return false; };
+    [[nodiscard]] bool isDeclarationTarget() const override { return false; };
+    [[nodiscard]] string description() const override { return "literal"; };
 
 private:
     double value;
+
+protected:
+    int line;
 };
 
 class StringNode : public ExpressionNode
 {
 public:
-    StringNode(string str) : value{str}
+    StringNode(string str, int lineNo) : value{str}, line{lineNo}
     {
     };
     void debugPrint(int indentLevel) const override;
     RuntimeValue evaluateNode(EnvironmentStack& scopes) const override;
+    [[nodiscard]] bool isDeclarationTarget() const override { return false; };
+    [[nodiscard]] bool isAssignmentTarget() const override { return false; };
+    [[nodiscard]] string description() const override { return "literal"; };
 
 private:
     string value;
+
+protected:
+    int line;
 };
 
 class BooleanNode : public ExpressionNode
 {
 public:
-    BooleanNode(bool tv) : value{tv}
+    BooleanNode(bool tv, int lineNo) : value{tv}, line{lineNo}
     {
     };
     void debugPrint(int indentLevel) const override;
     RuntimeValue evaluateNode(EnvironmentStack& scopes) const override;
+    [[nodiscard]] bool isDeclarationTarget() const override { return false; };
+    [[nodiscard]] bool isAssignmentTarget() const override { return false; };
+    [[nodiscard]] string description() const override { return "literal"; };
 
 private:
     bool value;
+
+protected:
+    int line;
 };
 
 class ArrayNode : public ExpressionNode
 {
 public:
-    ArrayNode(vector<unique_ptr<ExpressionNode>> array) :
-        value{std::move(array)}
+    ArrayNode(vector<unique_ptr<ExpressionNode>> array, int lineNo) :
+        value{std::move(array)}, line{lineNo}
     {
     };
 
@@ -118,84 +218,115 @@ public:
     };
     void debugPrint(int indentLevel) const override;
     RuntimeValue evaluateNode(EnvironmentStack& scopes) const override;
+    [[nodiscard]] bool isDeclarationTarget() const override { return false; };
+    [[nodiscard]] bool isAssignmentTarget() const override { return false; };
+    [[nodiscard]] string description() const override { return "literal"; };
 
 private:
     vector<std::unique_ptr<ExpressionNode>> value;
+
+protected:
+    int line;
 };
 
 class IndexNode : public ExpressionNode
 {
 public:
-    IndexNode(unique_ptr<ExpressionNode> Exp, unique_ptr<ExpressionNode> iExp) : operand{std::move(Exp)}
+    IndexNode(unique_ptr<ExpressionNode> Exp, unique_ptr<ExpressionNode> iExp, int lineNo) : operand{std::move(Exp)}
         ,
-        indexExp{std::move(iExp)}
+        indexExp{std::move(iExp)}, line{lineNo}
     {
     };
     void debugPrint(int indentLevel) const override;
     RuntimeValue evaluateNode(EnvironmentStack& scopes) const override;
     RuntimeValue& getReference(EnvironmentStack& scopes);
     RuntimeValue getIndex(EnvironmentStack& scopes) const { return indexExp->evaluateNode(scopes); };
+    [[nodiscard]] bool isDeclarationTarget() const override { return false; };
+    [[nodiscard]] bool isAssignmentTarget() const override { return true; };
+    [[nodiscard]] string description() const override { return "array subscript"; };
 
 private:
     unique_ptr<ExpressionNode> operand;
     unique_ptr<ExpressionNode> indexExp;
+
+protected:
+    int line;
 };
 
 
 class BinaryNode : public ExpressionNode
 {
 public:
-    BinaryNode(Token biOp, unique_ptr<ExpressionNode> leftNode, unique_ptr<ExpressionNode> rightNode)
-        : op{biOp}, left{std::move(leftNode)}, right{std::move(rightNode)}
+    BinaryNode(Token biOp, unique_ptr<ExpressionNode> leftNode, unique_ptr<ExpressionNode> rightNode, int lineNo)
+        : op{biOp}, left{std::move(leftNode)}, right{std::move(rightNode)}, line{lineNo}
     {
     };
     RuntimeValue evaluateNode(EnvironmentStack& scopes) const override;
     void debugPrint(int indentLevel) const override;
+    [[nodiscard]] bool isDeclarationTarget() const override { return false; };
+    [[nodiscard]] bool isAssignmentTarget() const override { return false; };
+    [[nodiscard]] string description() const override { return "literal"; };
 
 private:
     Token op;
     unique_ptr<ExpressionNode> left;
     unique_ptr<ExpressionNode> right;
+
+protected:
+    int line;
 };
 
 
 class AssignmentNode : public ExpressionNode
 {
 public:
-    AssignmentNode(unique_ptr<ExpressionNode> left, unique_ptr<ExpressionNode> right) :
-        lvalue{std::move(left)}, rvalue{std::move(right)}
+    AssignmentNode(unique_ptr<ExpressionNode> left, unique_ptr<ExpressionNode> right, int lineNo) :
+        lvalue{std::move(left)}, rvalue{std::move(right)}, line{lineNo}
     {
     };
     RuntimeValue evaluateNode(EnvironmentStack& scopes) const override;
     void debugPrint(int indentLevel) const override;
 
+    [[nodiscard]] bool isDeclarationTarget() const override { return false; };
+    [[nodiscard]] bool isAssignmentTarget() const override { return true; };
+    [[nodiscard]] string description() const override { return "literal"; };
+
 private:
     unique_ptr<ExpressionNode> lvalue;
     unique_ptr<ExpressionNode> rvalue;
+
+protected:
+    int line;
 };
 
 
 class FunctionCallNode : public ExpressionNode
 {
 public:
-    explicit FunctionCallNode(unique_ptr<ExpressionNode> var) : identifier{std::move(var)}
+    FunctionCallNode(unique_ptr<ExpressionNode> var, int lineNo) : identifier{std::move(var)}, line{lineNo}
     {
     };
 
-    FunctionCallNode(unique_ptr<ExpressionNode> var, vector<unique_ptr<ExpressionNode>> args) : identifier{
+    FunctionCallNode(unique_ptr<ExpressionNode> var, vector<unique_ptr<ExpressionNode>> args, int lineNo) : identifier{
             std::move(var)
-        },
-        arguments{std::move(args)}
+        }, arguments{std::move(args)}, line{lineNo}
     {
     };
     RuntimeValue evaluateNode(EnvironmentStack& scopes) const override;
     // vector<unique_ptr<ExpressionNode>>& getReference(EnvironmentStack& scopes) const;
     void debugPrint(int indentLevel) const override;
 
+    [[nodiscard]] bool isDeclarationTarget() const override { return false; };
+    [[nodiscard]] bool isAssignmentTarget() const override { return false; };
+    [[nodiscard]] string description() const override { return "function call"; };
+
 private
 :
     unique_ptr<ExpressionNode> identifier;
     vector<unique_ptr<ExpressionNode>> arguments;
+
+protected:
+    int line;
 };
 
 
@@ -216,19 +347,25 @@ private:
 class DeclarationNode : public StatementNode
 {
 public:
-    DeclarationNode(unique_ptr<VariableNode> left, unique_ptr<ExpressionNode> right) : lvalue{std::move(left)},
-        rvalue{std::move(right)}
+    DeclarationNode(unique_ptr<ExpressionNode> left, unique_ptr<ExpressionNode> right, int lineNo) :
+        lvalue{std::move(left)},
+        rvalue{std::move(right)}, line{lineNo}
     {
     };
 
-    DeclarationNode(unique_ptr<VariableNode> left) : lvalue{std::move(left)}, rvalue(make_unique<NumberNode>(0))
+    DeclarationNode(unique_ptr<ExpressionNode> left, int lineNo) : lvalue{std::move(left)},
+                                                                   rvalue(make_unique<NumberNode>(0, line)),
+                                                                   line{lineNo}
     {
     };
     void evaluateNode(EnvironmentStack& scopes) const override;
     void debugPrint(int indentLevel) const override;
 
+protected:
+    int line;
+
 private:
-    unique_ptr<VariableNode> lvalue;
+    unique_ptr<ExpressionNode> lvalue;
     unique_ptr<ExpressionNode> rvalue;
 };
 
@@ -344,13 +481,14 @@ private:
     unique_ptr<ExpressionNode> child;
 };
 
-void validateArity(int expected_arguments, int given_arguments, string f_name);
+void validateArity(int expected_arguments, int given_arguments, string f_name, int callLine);
 
 class FunctionDeclarationNode : public StatementNode
 {
 public:
-    FunctionDeclarationNode(string fname, vector<string> para, unique_ptr<StatementNode> b)
-        : identifier{fname}, parameters{std::move(para)}, body{std::move(b)}
+    FunctionDeclarationNode(string fname, vector<string> para, unique_ptr<StatementNode> b, int lineNo)
+        : identifier{fname}, parameters{std::move(para)}, body{std::move(b)}, line{lineNo}
+
     {
     };
     void debugPrint(int indentLevel) const override;
@@ -363,6 +501,7 @@ private:
     string identifier;
     vector<string> parameters;
     unique_ptr<StatementNode> body;
+    int line;
 };
 
 

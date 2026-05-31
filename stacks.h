@@ -5,6 +5,7 @@
 #include <vector>
 #include <map>
 #include <memory>
+#include <stdexcept>
 #include <variant>
 
 using std::string;
@@ -12,6 +13,27 @@ using std::vector;
 using std::map;
 using std::shared_ptr;
 
+
+constexpr bool DEBUG_ENV = true;
+
+namespace color
+{
+    constexpr const char* reset = "\033[0m";
+    constexpr const char* red = "\033[31m";
+    constexpr const char* boldRed = "\033[1;31m";
+    constexpr const char* white = "\033[37m";
+    constexpr const char* boldWhite = "\033[1;37m";
+
+    constexpr const char* magenta = "\033[35m";
+    constexpr const char* boldMagenta = "\033[1;35m";
+    constexpr const char* blue = "\033[34m";
+    constexpr const char* boldBlue = "\033[1;34m";
+
+    constexpr const char* cyan = "\033[36m";
+    constexpr const char* boldCyan = "\033[1;36m";
+    constexpr const char* green = "\033[32m";
+    constexpr const char* boldGreen = "\033[1;32m";
+}
 
 class RuntimeValue
 {
@@ -55,11 +77,16 @@ public:
         return std::holds_alternative<shared_ptr<Array>>(data);
     }
 
+    [[nodiscard]] bool isReducibleToBool() const;
+    [[nodiscard]] bool isTruthy() const;
     [[nodiscard]] double asNumber() const { return std::get<double>(data); };
     [[nodiscard]] const string& asString() const { return std::get<string>(data); };
+    string& getStringRef() { return std::get<string>(data); };
     [[nodiscard]] bool asBoolean() const { return std::get<bool>(data); };
     [[nodiscard]] shared_ptr<Array> asArrayPtr() const { return std::get<shared_ptr<Array>>(data); };
-    Kind kind() const;
+
+    [[nodiscard]] string description() const;
+    [[nodiscard]] Kind kind() const;
 
 private:
     Type data;
@@ -68,8 +95,13 @@ private:
 
 void printRuntimeValue(const RuntimeValue& val);
 
-constexpr bool DEBUG_ENV = true;
-using Environment = map<string, RuntimeValue>;
+struct VariableInfo
+{
+    RuntimeValue value;
+    int declarationLine;
+};
+
+using Environment = map<string, VariableInfo>;
 
 class EnvironmentStack
 {
@@ -82,13 +114,21 @@ public:
     void popScope();
     bool isEmpty();
 
-    RuntimeValue& get(const string& name);
-    void assign(string name, RuntimeValue value);
-    void declare(string name, RuntimeValue value);
+    VariableInfo& get(const string& name);
+    void assign(string name, VariableInfo data);
+    void declare(string name, VariableInfo data);
     void debugEnvPrint();
 
 private:
     vector<Environment> scopes;
+};
+
+class UndefinedVariable
+{
+};
+
+class Redeclaration
+{
 };
 
 #endif //INTERPRETER_STACKS_H

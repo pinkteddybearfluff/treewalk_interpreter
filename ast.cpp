@@ -82,21 +82,95 @@ void ArrayNode::debugPrint(int indentLevel) const
 
 RuntimeValue IndexNode::evaluateNode(EnvironmentStack& scopes) const
 {
-    if (operand->evaluateNode(scopes).isArray())
-        return operand->evaluateNode(scopes).asArrayPtr()->at(indexExp->evaluateNode(scopes).asNumber());
-    if (operand->evaluateNode(scopes).isString())
-        return RuntimeValue(
-            string(1, operand->evaluateNode(scopes).asString().at(indexExp->evaluateNode(scopes).asNumber())));
+    const RuntimeValue& object = operand->evaluateNode(scopes);
+    const RuntimeValue indexV = indexExp->evaluateNode(scopes);
+    if (indexV.isNumber())
+    {
+        const int index = static_cast<int>(indexV.asNumber());
+        if (object.isArray())
+        {
+            if (index < object.asArrayPtr()->size())
+                return object.asArrayPtr()->at(index);
+            throw RuntimeError("array index out of range", {
+                                   .category = ErrorCategory::IndexError,
+                                   .kind = ErrorKind::IndexOutOfBounds,
+                                   .primary = "array",
+                                   .currentLine = line
+                               });
+        }
+        if (object.isString())
+        {
+            if (index < object.asString().size())
+                return RuntimeValue(
+                    string(1, object.asString().at(index)));
+            throw RuntimeError("array index out of range", {
+                                   .category = ErrorCategory::IndexError,
+                                   .kind = ErrorKind::IndexOutOfBounds,
+                                   .primary = "string",
+                                   .currentLine = line
+                               });
+        }
+        throw RuntimeError("object is not subscriptable", {
+                               .category = ErrorCategory::TypeError,
+                               .kind = ErrorKind::NotSubscriptable,
+                               .primary = object.description(),
+                               .currentLine = line
+                           });
+    }
+    throw RuntimeError("invalid type for array index", {
+                           .category = ErrorCategory::TypeError, .kind = ErrorKind::InvalidIndexType,
+                           .primary = "numbers",
+                           .secondary = indexV.description(), .currentLine = line
+                       });
 }
 
 RuntimeValue& IndexNode::getReference(EnvironmentStack& scopes)
 {
-    return operand->evaluateNode(scopes).asArrayPtr()->at(indexExp->evaluateNode(scopes).asNumber());
+    const RuntimeValue indexV = indexExp->evaluateNode(scopes);
+    if (indexV.isNumber())
+    {
+        if (auto* var = dynamic_cast<VariableNode*>(operand.get()))
+        {
+            const RuntimeValue& object = var->getReference(scopes);
+            if (object.isArray())
+                return object.asArrayPtr()->at(indexV.asNumber());
+        }
+        if (auto* indexNode = dynamic_cast<IndexNode*>(operand.get()))
+        {
+            const RuntimeValue& object = indexNode->getReference(scopes);
+
+            const int index = static_cast<int>(indexV.asNumber());
+            if (object.isArray())
+            {
+                if (index < object.asArrayPtr()->size() && index >= 0)
+                    return object.asArrayPtr()->at(index);
+                throw RuntimeError("array index out of range", {
+                                       .category = ErrorCategory::IndexError,
+                                       .kind = ErrorKind::IndexOutOfBounds,
+                                       .primary = "array",
+                                       .currentLine = line
+                                   });
+            }
+
+            throw RuntimeError("object is not subscriptable", {
+                                   .category = ErrorCategory::TypeError,
+                                   .kind = ErrorKind::NotSubscriptable,
+                                   .primary = indexV.description(),
+                                   .currentLine = line
+                               });
+        }
+    }
+    throw RuntimeError("invalid type for array index", {
+                           .category = ErrorCategory::TypeError, .kind = ErrorKind::InvalidIndexType,
+                           .primary = "numbers",
+                           .secondary = indexV.description(), .currentLine = line
+                       });
 }
 
 
 void IndexNode::debugPrint(int indentLevel) const
 {
+    cout << "IndexNode\n";
     operand->debugPrint(indentLevel + 1);
     cout << "[";
     indexExp->debugPrint(indentLevel + 1);
@@ -108,59 +182,130 @@ RuntimeValue BinaryNode::evaluateNode(EnvironmentStack& scopes) const
     RuntimeValue lval = left->evaluateNode(scopes);
     RuntimeValue rval = right->evaluateNode(scopes);
 
-    if (lval.isNumber() && rval.isNumber())
+    try
     {
-        const auto& lvalue = lval.asNumber();
-        const auto& rvalue = rval.asNumber();
-        switch (this->op.type)
+        if (lval.isNumber() && rval.isNumber())
         {
-        case TokenType::Plus:
-            return RuntimeValue(lvalue + rvalue);
-        case TokenType::Minus:
-            return RuntimeValue(lvalue - rvalue);
-        case TokenType::Multiply:
-            return RuntimeValue(lvalue * rvalue);
-        case TokenType::Divide:
-            return RuntimeValue(lvalue / rvalue);
-        case TokenType::Greater:
-            return RuntimeValue(lvalue > rvalue);
-        case TokenType::GreaterEqual:
-            return RuntimeValue(lvalue >= rvalue);
-        case TokenType::LessEqual:
-            return RuntimeValue(lvalue <= rvalue);
-        case TokenType::Less:
-            return RuntimeValue(lvalue < rvalue);
-        case TokenType::Equal:
-            return RuntimeValue(lvalue == rvalue);
-        case TokenType::NotEqual:
-            return RuntimeValue(lvalue != rvalue);
-        default: throw std::runtime_error("Unknown operator for operand of type double");
+            const auto& lvalue = lval.asNumber();
+            const auto& rvalue = rval.asNumber();
+            switch (op.type)
+            {
+            case TokenType::Plus:
+                return RuntimeValue(lvalue + rvalue);
+            case TokenType::Minus:
+                return RuntimeValue(lvalue - rvalue);
+            case TokenType::Multiply:
+                return RuntimeValue(lvalue * rvalue);
+            case TokenType::Divide:
+                {
+                    if (rvalue)
+                        return RuntimeValue(lvalue / rvalue);
+                    throw RuntimeError("cannot divide by zero", {
+                                           .category = ErrorCategory::ZeroDivisionError,
+                                           .kind = ErrorKind::DivisionByZero,
+                                           .currentLine = line
+                                       });
+                }
+            case TokenType::Greater:
+                return RuntimeValue(lvalue > rvalue);
+            case TokenType::GreaterEqual:
+                return RuntimeValue(lvalue >= rvalue);
+            case TokenType::LessEqual:
+                return RuntimeValue(lvalue <= rvalue);
+            case TokenType::Less:
+                return RuntimeValue(lvalue < rvalue);
+            case TokenType::Equal:
+                return RuntimeValue(lvalue == rvalue);
+            case TokenType::NotEqual:
+                return RuntimeValue(lvalue != rvalue);
+            default: throw UnsupportedOperation();
+            }
         }
+        if (lval.isString() && rval.isString())
+        {
+            const auto& lvalue = lval.asString();
+            const auto& rvalue = rval.asString();
+            switch (op.type)
+            {
+            case TokenType::Plus:
+                return RuntimeValue(lvalue + rvalue);
+            case TokenType::Equal:
+                return RuntimeValue(lvalue == rvalue);
+            case TokenType::NotEqual:
+                return RuntimeValue(lvalue != rvalue);
+            case TokenType::Less:
+                return RuntimeValue(lvalue < rvalue);
+            case TokenType::LessEqual:
+                return RuntimeValue(lvalue <= rvalue);
+            case TokenType::Greater:
+                return RuntimeValue(lvalue > rvalue);
+            case TokenType::GreaterEqual:
+                return RuntimeValue(lvalue >= rvalue);
+            default: throw UnsupportedOperation();
+            }
+        }
+        if (lval.isBoolean() && rval.isBoolean())
+        {
+            const auto& lvalue = lval.asBoolean();
+            const auto& rvalue = rval.asBoolean();
+            switch (op.type)
+            {
+            case TokenType::Plus:
+                return RuntimeValue(static_cast<double>(lvalue + rvalue));
+            case TokenType::Minus:
+                return RuntimeValue(static_cast<double>(lvalue - rvalue));
+            case TokenType::Multiply:
+                return RuntimeValue(static_cast<double>(lvalue * rvalue));
+            case TokenType::Divide:
+                {
+                    if (rvalue)
+                        return RuntimeValue(static_cast<double>(lvalue / rvalue));
+                    throw RuntimeError("cannot divide by zero", {
+                                           .category = ErrorCategory::ZeroDivisionError,
+                                           .kind = ErrorKind::DivisionByZero,
+                                           .currentLine = line
+                                       });
+                }
+            case TokenType::Greater:
+                return RuntimeValue(lvalue > rvalue);
+            case TokenType::GreaterEqual:
+                return RuntimeValue(lvalue >= rvalue);
+            case TokenType::LessEqual:
+                return RuntimeValue(lvalue <= rvalue);
+            case TokenType::Less:
+                return RuntimeValue(lvalue < rvalue);
+            case TokenType::Equal:
+                return RuntimeValue(lvalue == rvalue);
+            case TokenType::NotEqual:
+                return RuntimeValue(lvalue != rvalue);
+            default: throw UnsupportedOperation();
+            }
+        }
+        if (lval.isArray() && rval.isArray())
+        {
+            const auto& lvalue = lval.asArrayPtr();
+            const auto& rvalue = rval.asArrayPtr();
+            switch (op.type)
+            {
+            case TokenType::Equal:
+                throw std::runtime_error("currently '==' operator not defined for arrays");
+            case TokenType::NotEqual:
+                throw std::runtime_error("currently '!=' operator not defined for arrays");
+            default: throw UnsupportedOperation();
+            }
+        }
+
+        throw UnsupportedOperation();
     }
-    if (lval.isString() && rval.isString())
+    catch (UnsupportedOperation)
     {
-        const auto& lvalue = lval.asString();
-        const auto& rvalue = rval.asString();
-        switch (this->op.type)
-        {
-        case TokenType::Plus:
-            return RuntimeValue(lvalue + rvalue);
-        case TokenType::Equal:
-            return RuntimeValue(lvalue == rvalue);
-        case TokenType::NotEqual:
-            return RuntimeValue(lvalue != rvalue);
-        case TokenType::Less:
-            return RuntimeValue(lvalue < rvalue);
-        case TokenType::LessEqual:
-            return RuntimeValue(lvalue <= rvalue);
-        case TokenType::Greater:
-            return RuntimeValue(lvalue > rvalue);
-        case TokenType::GreaterEqual:
-            return RuntimeValue(lvalue >= rvalue);
-        default: throw std::runtime_error("Unknown operator for operand of type string");
-        }
+        throw RuntimeError("unsupported operation", {
+                               .category = ErrorCategory::TypeError, .kind = ErrorKind::UnsupportedOperation,
+                               .identifier = getSymbolForOp(op.type), .primary = lval.description(),
+                               .secondary = rval.description(),
+                               .currentLine = line
+                           });
     }
-    throw std::runtime_error("invalid operand types for " + getSymbolForOp(op.type));
 }
 
 void BinaryNode::debugPrint(int indentLevel) const
@@ -185,18 +330,34 @@ void ExpressionStatementNode::debugPrint(int indentLevel) const
 
 RuntimeValue VariableNode::evaluateNode(EnvironmentStack& scopes) const
 {
-    return scopes.get(identifierName);
+    try
+    {
+        return scopes.get(identifierName).value;
+    }
+    catch (UndefinedVariable)
+    {
+        throw RuntimeError("undefined variable", {
+                               .category = ErrorCategory::NameError, .kind = ErrorKind::VariableUndefined,
+                               .identifier = identifierName, .currentLine = line
+                           });
+    }
 }
 
 RuntimeValue& VariableNode::getReference(EnvironmentStack& scopes)
 {
-    return scopes.get(identifierName);
+    try
+    {
+        return scopes.get(identifierName).value;
+    }
+    catch (UndefinedVariable)
+    {
+        throw RuntimeError("undefined variable", {
+                               .category = ErrorCategory::NameError, .kind = ErrorKind::VariableUndefined,
+                               .identifier = identifierName, .currentLine = line
+                           });
+    }
 }
 
-// RuntimeValue& VariableNode::getFuncReference(FunctionTable& function_table)
-// {
-//     return
-// }
 
 void VariableNode::debugPrint(int i) const
 {
@@ -229,7 +390,21 @@ void AssignmentNode::debugPrint(int indentLevel) const
 void DeclarationNode::evaluateNode(EnvironmentStack& scopes) const
 {
     RuntimeValue right = rvalue->evaluateNode(scopes);
-    scopes.declare(lvalue->getIdentifierName(), right);
+    if (auto* var = dynamic_cast<VariableNode*>(lvalue.get()))
+        try
+        {
+            scopes.declare(var->getIdentifierName(), {right, line});
+        }
+        catch (Redeclaration)
+        {
+            throw RuntimeError("redeclaration of variable", {
+                                   .category = ErrorCategory::RedeclarationError,
+                                   .kind = ErrorKind::VariableRedeclaration,
+                                   .identifier = var->getIdentifierName(),
+                                   .currentLine = line,
+                                   .previousLine = scopes.get(var->getIdentifierName()).declarationLine
+                               });
+        }
 }
 
 void DeclarationNode::debugPrint(int indentLevel) const
@@ -245,18 +420,16 @@ void IfNode::evaluateNode(EnvironmentStack& scopes) const
 {
     scopes.pushScope();
     RuntimeValue truthVal = condition->evaluateNode(scopes);
-    if (truthVal.isBoolean())
-    {
-        if (truthVal.asBoolean())
-            thenStatement->evaluateNode(scopes);
 
-        else
-        {
-            if (elseStatement)
-                elseStatement->evaluateNode(scopes);
-        }
+    if (truthVal.isTruthy())
+        thenStatement->evaluateNode(scopes);
+
+    else
+    {
+        if (elseStatement)
+            elseStatement->evaluateNode(scopes);
     }
-    else throw std::runtime_error("type for condition does not reduce to boolean");
+
     scopes.popScope();
 }
 
@@ -279,27 +452,25 @@ void IfNode::debugPrint(int indentLevel) const
 
 void WhileNode::evaluateNode(EnvironmentStack& scopes) const
 {
-    if (condition->evaluateNode(scopes).isBoolean())
-        while (condition->evaluateNode(scopes).asBoolean())
+    while (condition->evaluateNode(scopes).isTruthy())
+    {
+        try
         {
-            try
-            {
-                scopes.pushScope();
-                statement->evaluateNode(scopes);
-                scopes.popScope();
-            }
-            catch (BreakSignal b)
-            {
-                scopes.popScope();
-                break;
-            }
-            catch (ContinueSignal c)
-            {
-                scopes.popScope();
-                continue;
-            }
+            scopes.pushScope();
+            statement->evaluateNode(scopes);
+            scopes.popScope();
         }
-    else throw std::runtime_error("type for condition does not reduce to boolean");
+        catch (BreakSignal b)
+        {
+            scopes.popScope();
+            break;
+        }
+        catch (ContinueSignal c)
+        {
+            scopes.popScope();
+            continue;
+        }
+    }
 }
 
 void WhileNode::debugPrint(int indentLevel) const
@@ -321,7 +492,7 @@ void ForNode::evaluateNode(EnvironmentStack& scopes) const
         try
         {
             if (condition)
-                if (!condition->evaluateNode(scopes).asBoolean())
+                if (!condition->evaluateNode(scopes).isTruthy())
                     break;
 
             statement->evaluateNode(scopes);
@@ -408,7 +579,7 @@ RuntimeValue FunctionCallNode::evaluateNode(EnvironmentStack& scopes) const
             {
                 for (int i = 0; i < arguments.size(); ++i)
                 {
-                    env[parameters[i]] = RuntimeValue(arguments[i]->evaluateNode(scopes));
+                    env[parameters[i]] = {RuntimeValue(arguments[i]->evaluateNode(scopes)), line};
                 }
                 localScopes.pushScope(env);
                 try
@@ -422,27 +593,27 @@ RuntimeValue FunctionCallNode::evaluateNode(EnvironmentStack& scopes) const
                 localScopes.popScope();
                 return RuntimeValue(0.0);
             }
-            validateArity(iter->second->getParametersSize(), arguments.size(), identifierName);
+            validateArity(iter->second->getParametersSize(), arguments.size(), identifierName, line);
         }
         if (identifierName == "abs")
         {
             if (arguments.size() == 1)
                 return RuntimeValue(static_cast<double>(abs(arguments[0]->evaluateNode(scopes).asNumber())));
-            validateArity(1, arguments.size(), "abs");
+            validateArity(1, arguments.size(), "abs", line);
         }
         if (identifierName == "max")
         {
             if (arguments.size() == 2)
                 return RuntimeValue(std::max(arguments[0]->evaluateNode(scopes).asNumber(),
                                              arguments[1]->evaluateNode(scopes).asNumber()));
-            validateArity(2, arguments.size(), "max");
+            validateArity(2, arguments.size(), "max", line);
         }
         if (identifierName == "min")
         {
             if (arguments.size() == 2)
                 return RuntimeValue((std::min(arguments[0]->evaluateNode(scopes).asNumber(),
                                               arguments[1]->evaluateNode(scopes).asNumber())));
-            validateArity(2, arguments.size(), "min");
+            validateArity(2, arguments.size(), "min", line);
         }
         if (identifierName == "avg")
         {
@@ -454,7 +625,7 @@ RuntimeValue FunctionCallNode::evaluateNode(EnvironmentStack& scopes) const
                 avg = avg / arguments.size();
                 return RuntimeValue(avg);
             }
-            validateArity(1, arguments.size(), "avg");
+            validateArity(1, arguments.size(), "avg", line);
         }
         if (identifierName == "print")
         {
@@ -468,6 +639,7 @@ RuntimeValue FunctionCallNode::evaluateNode(EnvironmentStack& scopes) const
                 }
                 cout << '\n';
             }
+            else cout << "";
             return RuntimeValue(0.0);
         }
         if (identifierName == "size")
@@ -481,7 +653,7 @@ RuntimeValue FunctionCallNode::evaluateNode(EnvironmentStack& scopes) const
                     return RuntimeValue(static_cast<double>(arg.asString().size()));
                 throw std::runtime_error("invalid operand for size method");
             }
-            validateArity(1, arguments.size(), "size");
+            validateArity(1, arguments.size(), "size", line);
         }
         if (identifierName == "push")
         {
@@ -500,14 +672,32 @@ RuntimeValue FunctionCallNode::evaluateNode(EnvironmentStack& scopes) const
                 }
             }
         }
+        try
+        {
+            scopes.get(identifierName);
+            throw RuntimeError("object is not callable", {
+                                   .category = ErrorCategory::TypeError,
+                                   .kind = ErrorKind::NotCallable,
+                                   .primary = identifier->evaluateNode(scopes).description(),
+                                   .currentLine = line,
+                               });
+        }
+        catch (UndefinedVariable)
+        {
+            throw RuntimeError("function is not defined", {
+                                   .category = ErrorCategory::NameError, .kind = ErrorKind::FunctionUndefined,
+                                   .identifier = identifierName, .currentLine = line
+                               });
+        }
     }
-    throw std::runtime_error("undefined function identifier");
+    throw RuntimeError("object is not callable", {
+                           .category = ErrorCategory::TypeError,
+                           .kind = ErrorKind::NotCallable,
+                           .primary = identifier->evaluateNode(scopes).description(),
+                           .currentLine = line,
+                       });
 }
 
-// vector<unique_ptr<ExpressionNode>>& FunctionCallNode::getReference(EnvironmentStack& scopes) const
-// {
-//     return arguments;
-// }
 
 void FunctionCallNode::debugPrint(int indentLevel) const
 {
@@ -520,25 +710,44 @@ void FunctionCallNode::debugPrint(int indentLevel) const
     }
 }
 
-void validateArity(int expected_arguments, int given_arguments, string f_name)
+void validateArity(int expected_arguments, int given_arguments, string f_name, int callLine)
 {
     if (given_arguments > expected_arguments)
     {
-        throw std::runtime_error(
-            "too many arguments to function '" + f_name + "'; expected " + std::to_string(expected_arguments) +
-            ", have " + std::to_string(given_arguments));
+        throw RuntimeError("too many arguments", {
+                               .category = ErrorCategory::ArityError,
+                               .kind = ErrorKind::TooManyArguments,
+                               .identifier = f_name,
+                               .currentLine = callLine,
+                               .expected = expected_arguments,
+                               .actual = given_arguments
+                           });
     }
     if (given_arguments < expected_arguments)
     {
-        throw std::runtime_error(
-            "too few arguments to function '" + f_name + "'; expected " + std::to_string(expected_arguments) +
-            ", have " + std::to_string(given_arguments));
+        throw RuntimeError("too few arguments", {
+                               .category = ErrorCategory::ArityError,
+                               .kind = ErrorKind::TooFewArguments,
+                               .identifier = f_name,
+                               .currentLine = callLine,
+                               .expected = expected_arguments,
+                               .actual = given_arguments
+                           });
     }
 }
 
 void FunctionDeclarationNode::evaluateNode(EnvironmentStack& scopes) const
 {
-    functions[identifier] = this;
+    auto iter = functions.find(identifier);
+    if (iter == functions.end())
+        functions[identifier] = this;
+    else
+        throw RuntimeError("redeclaration of function", {
+                               .category = ErrorCategory::RedeclarationError,
+                               .kind = ErrorKind::FunctionRedeclaration,
+                               .identifier = identifier,
+                               .currentLine = line
+                           });
 }
 
 void FunctionDeclarationNode::debugPrint(int indentLevel) const
@@ -592,4 +801,58 @@ void EmptyNode::evaluateNode(EnvironmentStack& scopes) const
 void EmptyNode::debugPrint(int indentLevel) const
 {
     cout << string(indentLevel * IndentSize, ' ') << "EmptyStatement\n";
+}
+
+string getErrorCategoryString(ErrorCategory category)
+{
+    switch (category)
+    {
+    case ErrorCategory::NameError:
+        return "NameError";
+    case ErrorCategory::ZeroDivisionError:
+        return "ZeroDivisionError";
+    case ErrorCategory::TypeError:
+        return "TypeError";
+    case ErrorCategory::RedeclarationError:
+        return "RedeclarationError";
+    case ErrorCategory::ArityError:
+        return "ArityError";
+    case ErrorCategory::ValueError:
+        return "ValueError";
+    case ErrorCategory::IndexError:
+        return "IndexError";
+    }
+}
+
+string getErrorKindString(ErrorKind kind)
+{
+    switch (kind)
+    {
+    case ErrorKind::VariableUndefined:
+        return "VariableUndefined";
+    case ErrorKind::FunctionUndefined:
+        return "FunctionUndefined";
+    case ErrorKind::InvalidIndexType:
+        return "InvalidIndexType";
+    case ErrorKind::OperandTypeMismatch:
+        return "OperandTypeMismatch";
+    case ErrorKind::UnsupportedOperation:
+        return "UnsupportedOperation";
+    case ErrorKind::NotCallable:
+        return "NotCallable";
+    case ErrorKind::NotSubscriptable:
+        return "NotSubscriptable";
+    case ErrorKind::TooFewArguments:
+        return "TooFewArguments";
+    case ErrorKind::TooManyArguments:
+        return "TooManyArguments";
+    case ErrorKind::DivisionByZero:
+        return "DivisionByZero";
+    case ErrorKind::IndexOutOfBounds:
+        return "IndexOutOfBounds";
+    case ErrorKind::VariableRedeclaration:
+        return "VariableRedeclaration";
+    case ErrorKind::FunctionRedeclaration:
+        return "FunctionRedeclaration";
+    }
 }

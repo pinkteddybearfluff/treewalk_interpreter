@@ -10,9 +10,16 @@ using std::string;
 using std::vector;
 using std::cout;
 
-constexpr bool DEBUG_LEXER = false;
+class LexerError : public std::runtime_error
+{
+public:
+    LexerError(const string& msg, int lineNo) : std::runtime_error{msg}, line{lineNo}
+    {
+    };
+    int line;
+};
 
-//TODO: IMPLEMENT peekNext
+constexpr bool DEBUG_LEXER = false;
 
 enum class TokenType
 {
@@ -76,7 +83,7 @@ private:
     std::istream& is;
     Token buffer[2];
     int bufferCount{0};
-    int lineNo{0};
+    int lineNo{1};
     Token readFromStream();
     Token charToToken(int ch);
 

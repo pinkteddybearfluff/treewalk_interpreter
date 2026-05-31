@@ -295,7 +295,7 @@ Token TokenStream::charToToken(int ch)
         }
     default:
         cout << static_cast<char>(ch) << std::endl;
-        throw std::runtime_error("Unknown token!");
+        throw LexerError("invalid syntax " + string(1, ch), getLineNo());
     }
 }
 

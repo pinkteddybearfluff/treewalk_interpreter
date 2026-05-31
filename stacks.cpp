@@ -11,6 +11,56 @@ RuntimeValue::Kind RuntimeValue::kind() const
     if (isArray()) return Kind::Array;
 }
 
+string RuntimeValue::description() const
+{
+    switch (kind())
+    {
+    case Kind::Number:
+        return "number";
+    case Kind::String:
+        return "str";
+    case Kind::Boolean:
+        return "bool";
+    case Kind::Array:
+        return "array";
+    }
+}
+
+bool RuntimeValue::isReducibleToBool() const
+{
+    if (isArray()) return true;
+    if (isBoolean()) return true;
+    if (isString()) return true;
+    if (isNumber()) return true;
+    return false;
+}
+
+bool RuntimeValue::isTruthy() const
+{
+    if (isArray())
+    {
+        if (!asArrayPtr()->empty())
+            return true;
+        return false;
+    }
+    if (isNumber())
+    {
+        if (static_cast<bool>(asNumber())) return true;
+        return false;
+    }
+    if (isString())
+    {
+        if (!asString().empty()) return true;
+        return false;
+    }
+    if (isBoolean())
+    {
+        if (asBoolean()) return true;
+        return false;
+    }
+    return false;
+}
+
 void printRuntimeValue(const RuntimeValue& value)
 {
     switch (value.kind())
@@ -60,7 +110,7 @@ bool EnvironmentStack::isEmpty()
     return false;
 }
 
-void EnvironmentStack::assign(string name, RuntimeValue value)
+void EnvironmentStack::assign(string name, VariableInfo data)
 {
     bool idenExists = false;
     for (int i = scopes.size() - 1; i >= 0; --i)
@@ -69,30 +119,30 @@ void EnvironmentStack::assign(string name, RuntimeValue value)
         if (iter != scopes[i].end())
         {
             idenExists = true;
-            iter->second = value;
+            iter->second = data;
             return;
         }
     }
     if (!idenExists)
     {
         Environment& env = scopes.back();
-        env[name] = value;
+        env[name] = data;
     }
 }
 
-void EnvironmentStack::declare(string name, RuntimeValue value)
+void EnvironmentStack::declare(string name, VariableInfo data)
 {
     for (int i = scopes.size() - 1; i >= 0; --i)
     {
         auto iter = scopes[i].find(name);
         if (iter != scopes[i].end())
-            throw std::runtime_error("variable " + name + " already exists");
+            throw Redeclaration();
     }
     Environment& env = scopes.back();
-    env[name] = value;
+    env[name] = data;
 }
 
-RuntimeValue& EnvironmentStack::get(const string& name)
+VariableInfo& EnvironmentStack::get(const string& name)
 {
     for (int i = scopes.size() - 1; i >= 0; --i)
     {
@@ -100,7 +150,7 @@ RuntimeValue& EnvironmentStack::get(const string& name)
         if (iter != scopes[i].end())
             return iter->second;
     }
-    throw std::runtime_error("Undefined variable " + name);
+    throw UndefinedVariable();
 }
 
 void EnvironmentStack::debugEnvPrint()
@@ -112,7 +162,7 @@ void EnvironmentStack::debugEnvPrint()
         for (auto& var : env)
         {
             std::cout << string(i * 2, ' ') << var.first << ": ";
-            printRuntimeValue(var.second);
+            printRuntimeValue(var.second.value);
             std::cout << "\n";
         }
         ++i;
