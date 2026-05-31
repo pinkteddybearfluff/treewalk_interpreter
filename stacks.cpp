@@ -1,4 +1,5 @@
 #include "stacks.h"
+#include "ast.h"
 
 #include <stdexcept>
 #include <iostream>
@@ -9,6 +10,8 @@ RuntimeValue::Kind RuntimeValue::kind() const
     if (isNumber()) return Kind::Number;
     if (isBoolean()) return Kind::Boolean;
     if (isArray()) return Kind::Array;
+    if (isNull()) return Kind::Null;
+    if (isFunctionObj()) return Kind::FunctionObject;
 }
 
 string RuntimeValue::description() const
@@ -23,6 +26,10 @@ string RuntimeValue::description() const
         return "bool";
     case Kind::Array:
         return "array";
+    case Kind::Null:
+        return "null";
+    case Kind::FunctionObject:
+        return "functionobj";
     }
 }
 
@@ -83,6 +90,13 @@ void printRuntimeValue(const RuntimeValue& value)
         }
         std::cout << "]";
         break;
+    case RuntimeValue::Kind::FunctionObject:
+        std::cout << "function";
+        value.asFunctionObj().body->debugPrint(0);
+        break;
+    case RuntimeValue::Kind::Null:
+        std::cout << "null";
+        break;
     }
 }
 
@@ -92,6 +106,11 @@ void EnvironmentStack::popScope()
         throw std::runtime_error("no scopes to pop");
     scopes.pop_back();
 }
+
+// VariableInfo& Environment::getReference(const string& identifier)
+// {
+//     auto* iter = variables.find()
+// }
 
 void EnvironmentStack::pushScope()
 {
@@ -110,25 +129,6 @@ bool EnvironmentStack::isEmpty()
     return false;
 }
 
-void EnvironmentStack::assign(string name, VariableInfo data)
-{
-    bool idenExists = false;
-    for (int i = scopes.size() - 1; i >= 0; --i)
-    {
-        auto iter = scopes[i].find(name);
-        if (iter != scopes[i].end())
-        {
-            idenExists = true;
-            iter->second = data;
-            return;
-        }
-    }
-    if (!idenExists)
-    {
-        Environment& env = scopes.back();
-        env[name] = data;
-    }
-}
 
 void EnvironmentStack::declare(string name, VariableInfo data)
 {

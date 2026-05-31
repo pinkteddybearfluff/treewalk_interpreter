@@ -13,6 +13,7 @@ using std::vector;
 using std::map;
 using std::shared_ptr;
 
+class BlockNode;
 
 constexpr bool DEBUG_ENV = true;
 
@@ -35,6 +36,12 @@ namespace color
     constexpr const char* boldGreen = "\033[1;32m";
 }
 
+struct FunctionObject
+{
+    vector<string> parameters;
+    const BlockNode* body;
+};
+
 class RuntimeValue
 {
 public:
@@ -43,13 +50,43 @@ public:
         Number,
         String,
         Boolean,
-        Array
+        Array,
+        Null,
+        FunctionObject
     };
 
     using Array = vector<RuntimeValue>;
-    using Type = std::variant<double, bool, string, std::monostate, shared_ptr<Array>>;
+    using Type = std::variant<double, bool, string, std::monostate, shared_ptr<Array>, FunctionObject>;
 
     RuntimeValue(Type d) : data{d}
+    {
+    };
+
+    RuntimeValue(FunctionObject f) : data{f}
+    {
+    };
+
+    RuntimeValue(char c) : data{string(1, c)}
+    {
+    };
+
+    RuntimeValue(double d) : data{d}
+    {
+    };
+
+    RuntimeValue(string str) : data{str}
+    {
+    };
+
+    RuntimeValue(int i) : data{static_cast<double>(i)}
+    {
+    };
+
+    RuntimeValue(bool b) : data{b}
+    {
+    };
+
+    RuntimeValue(shared_ptr<Array> spa) : data{spa}
     {
     };
 
@@ -77,13 +114,26 @@ public:
         return std::holds_alternative<shared_ptr<Array>>(data);
     }
 
+    [[nodiscard]] bool isNull() const
+    {
+        return std::holds_alternative<std::monostate>(data);
+    }
+
+    [[nodiscard]] bool isFunctionObj() const
+    {
+        return std::holds_alternative<FunctionObject>(data);
+    }
+
     [[nodiscard]] bool isReducibleToBool() const;
     [[nodiscard]] bool isTruthy() const;
     [[nodiscard]] double asNumber() const { return std::get<double>(data); };
     [[nodiscard]] const string& asString() const { return std::get<string>(data); };
+
+    [[nodiscard]] std::monostate asNull() const { return std::get<std::monostate>(data); };
     string& getStringRef() { return std::get<string>(data); };
     [[nodiscard]] bool asBoolean() const { return std::get<bool>(data); };
     [[nodiscard]] shared_ptr<Array> asArrayPtr() const { return std::get<shared_ptr<Array>>(data); };
+    [[nodiscard]] FunctionObject asFunctionObj() const { return std::get<FunctionObject>(data); };
 
     [[nodiscard]] string description() const;
     [[nodiscard]] Kind kind() const;
@@ -103,6 +153,15 @@ struct VariableInfo
 
 using Environment = map<string, VariableInfo>;
 
+// struct Environment
+// {
+//     std::map<string, VariableInfo> variables;
+//     shared_ptr<Environment> parent;
+//     VariableInfo& getReference(const string& identifier);
+//     void declare();
+// };
+
+
 class EnvironmentStack
 {
 public:
@@ -115,7 +174,6 @@ public:
     bool isEmpty();
 
     VariableInfo& get(const string& name);
-    void assign(string name, VariableInfo data);
     void declare(string name, VariableInfo data);
     void debugEnvPrint();
 
@@ -129,6 +187,28 @@ class UndefinedVariable
 
 class Redeclaration
 {
+};
+
+class ScopedEnvironment
+{
+public:
+    ScopedEnvironment(EnvironmentStack& scopes) : scopes{scopes}
+    {
+        this->scopes.pushScope();
+    };
+
+    ScopedEnvironment(EnvironmentStack& scopes, Environment& env) : scopes{scopes}
+    {
+        this->scopes.pushScope(env);
+    };
+
+    ~ScopedEnvironment()
+    {
+        scopes.popScope();
+    }
+
+private:
+    EnvironmentStack& scopes;
 };
 
 #endif //INTERPRETER_STACKS_H

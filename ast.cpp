@@ -9,7 +9,7 @@ FunctionTable functions;
 
 RuntimeValue NumberNode::evaluateNode(EnvironmentStack& scopes) const
 {
-    return RuntimeValue(value);
+    return value;
 }
 
 void NumberNode::debugPrint(int indentLevel) const
@@ -19,7 +19,7 @@ void NumberNode::debugPrint(int indentLevel) const
 
 RuntimeValue StringNode::evaluateNode(EnvironmentStack& scopes) const
 {
-    return RuntimeValue(value);
+    return value;
 }
 
 void StringNode::debugPrint(int indentLevel) const
@@ -34,7 +34,7 @@ RuntimeValue UnaryNode::evaluateNode(EnvironmentStack& scopes) const
     {
         if (op.type == TokenType::Minus)
         {
-            return RuntimeValue(-value.asNumber());
+            return -value.asNumber();
         }
         return value;
     }
@@ -55,8 +55,19 @@ void BooleanNode::debugPrint(int indentLevel) const
 
 RuntimeValue BooleanNode::evaluateNode(EnvironmentStack& scopes) const
 {
-    return RuntimeValue(value);
+    return value;
 }
+
+RuntimeValue NullNode::evaluateNode(EnvironmentStack& scopes) const
+{
+    return {};
+}
+
+void NullNode::debugPrint(int indentLevel) const
+{
+    cout << "Null";
+}
+
 
 RuntimeValue ArrayNode::evaluateNode(EnvironmentStack& scopes) const
 {
@@ -66,7 +77,7 @@ RuntimeValue ArrayNode::evaluateNode(EnvironmentStack& scopes) const
     {
         arrayPtr->push_back(value[i]->evaluateNode(scopes));
     }
-    return RuntimeValue(arrayPtr);
+    return arrayPtr;
 }
 
 void ArrayNode::debugPrint(int indentLevel) const
@@ -101,8 +112,7 @@ RuntimeValue IndexNode::evaluateNode(EnvironmentStack& scopes) const
         if (object.isString())
         {
             if (index < object.asString().size())
-                return RuntimeValue(
-                    string(1, object.asString().at(index)));
+                return object.asString().at(index);
             throw RuntimeError("array index out of range", {
                                    .category = ErrorCategory::IndexError,
                                    .kind = ErrorKind::IndexOutOfBounds,
@@ -191,15 +201,15 @@ RuntimeValue BinaryNode::evaluateNode(EnvironmentStack& scopes) const
             switch (op.type)
             {
             case TokenType::Plus:
-                return RuntimeValue(lvalue + rvalue);
+                return lvalue + rvalue;
             case TokenType::Minus:
-                return RuntimeValue(lvalue - rvalue);
+                return lvalue - rvalue;
             case TokenType::Multiply:
-                return RuntimeValue(lvalue * rvalue);
+                return lvalue * rvalue;
             case TokenType::Divide:
                 {
                     if (rvalue)
-                        return RuntimeValue(lvalue / rvalue);
+                        return lvalue / rvalue;
                     throw RuntimeError("cannot divide by zero", {
                                            .category = ErrorCategory::ZeroDivisionError,
                                            .kind = ErrorKind::DivisionByZero,
@@ -207,17 +217,17 @@ RuntimeValue BinaryNode::evaluateNode(EnvironmentStack& scopes) const
                                        });
                 }
             case TokenType::Greater:
-                return RuntimeValue(lvalue > rvalue);
+                return lvalue > rvalue;
             case TokenType::GreaterEqual:
-                return RuntimeValue(lvalue >= rvalue);
+                return lvalue >= rvalue;
             case TokenType::LessEqual:
-                return RuntimeValue(lvalue <= rvalue);
+                return lvalue <= rvalue;
             case TokenType::Less:
-                return RuntimeValue(lvalue < rvalue);
+                return lvalue < rvalue;
             case TokenType::Equal:
-                return RuntimeValue(lvalue == rvalue);
+                return lvalue == rvalue;
             case TokenType::NotEqual:
-                return RuntimeValue(lvalue != rvalue);
+                return lvalue != rvalue;
             default: throw UnsupportedOperation();
             }
         }
@@ -228,19 +238,19 @@ RuntimeValue BinaryNode::evaluateNode(EnvironmentStack& scopes) const
             switch (op.type)
             {
             case TokenType::Plus:
-                return RuntimeValue(lvalue + rvalue);
+                return lvalue + rvalue;
             case TokenType::Equal:
-                return RuntimeValue(lvalue == rvalue);
+                return lvalue == rvalue;
             case TokenType::NotEqual:
-                return RuntimeValue(lvalue != rvalue);
+                return lvalue != rvalue;
             case TokenType::Less:
-                return RuntimeValue(lvalue < rvalue);
+                return lvalue < rvalue;
             case TokenType::LessEqual:
-                return RuntimeValue(lvalue <= rvalue);
+                return lvalue <= rvalue;
             case TokenType::Greater:
-                return RuntimeValue(lvalue > rvalue);
+                return lvalue > rvalue;
             case TokenType::GreaterEqual:
-                return RuntimeValue(lvalue >= rvalue);
+                return lvalue >= rvalue;
             default: throw UnsupportedOperation();
             }
         }
@@ -251,15 +261,15 @@ RuntimeValue BinaryNode::evaluateNode(EnvironmentStack& scopes) const
             switch (op.type)
             {
             case TokenType::Plus:
-                return RuntimeValue(static_cast<double>(lvalue + rvalue));
+                return lvalue + rvalue;
             case TokenType::Minus:
-                return RuntimeValue(static_cast<double>(lvalue - rvalue));
+                return lvalue - rvalue;
             case TokenType::Multiply:
-                return RuntimeValue(static_cast<double>(lvalue * rvalue));
+                return lvalue * rvalue;
             case TokenType::Divide:
                 {
                     if (rvalue)
-                        return RuntimeValue(static_cast<double>(lvalue / rvalue));
+                        return lvalue / rvalue;
                     throw RuntimeError("cannot divide by zero", {
                                            .category = ErrorCategory::ZeroDivisionError,
                                            .kind = ErrorKind::DivisionByZero,
@@ -267,17 +277,17 @@ RuntimeValue BinaryNode::evaluateNode(EnvironmentStack& scopes) const
                                        });
                 }
             case TokenType::Greater:
-                return RuntimeValue(lvalue > rvalue);
+                return lvalue > rvalue;
             case TokenType::GreaterEqual:
-                return RuntimeValue(lvalue >= rvalue);
+                return lvalue >= rvalue;
             case TokenType::LessEqual:
-                return RuntimeValue(lvalue <= rvalue);
+                return lvalue <= rvalue;
             case TokenType::Less:
-                return RuntimeValue(lvalue < rvalue);
+                return lvalue < rvalue;
             case TokenType::Equal:
-                return RuntimeValue(lvalue == rvalue);
+                return lvalue == rvalue;
             case TokenType::NotEqual:
-                return RuntimeValue(lvalue != rvalue);
+                return lvalue != rvalue;
             default: throw UnsupportedOperation();
             }
         }
@@ -456,18 +466,15 @@ void WhileNode::evaluateNode(EnvironmentStack& scopes) const
     {
         try
         {
-            scopes.pushScope();
+            ScopedEnvironment local(scopes);
             statement->evaluateNode(scopes);
-            scopes.popScope();
         }
         catch (BreakSignal b)
         {
-            scopes.popScope();
             break;
         }
         catch (ContinueSignal c)
         {
-            scopes.popScope();
             continue;
         }
     }
@@ -483,7 +490,7 @@ void WhileNode::debugPrint(int indentLevel) const
 
 void ForNode::evaluateNode(EnvironmentStack& scopes) const
 {
-    scopes.pushScope();
+    ScopedEnvironment local(scopes);
     if (initializer)
         initializer->evaluateNode(scopes);
 
@@ -545,12 +552,11 @@ void ContinueNode::debugPrint(int indentLevel) const
 
 void BlockNode::evaluateNode(EnvironmentStack& scopes) const
 {
-    scopes.pushScope();
+    ScopedEnvironment local(scopes);
     for (auto& statement : statements)
     {
         statement->evaluateNode(scopes);
     }
-    scopes.popScope();
 }
 
 void BlockNode::debugPrint(int indentLevel) const
@@ -568,113 +574,35 @@ RuntimeValue FunctionCallNode::evaluateNode(EnvironmentStack& scopes) const
 {
     if (auto* func = dynamic_cast<VariableNode*>(identifier.get()))
     {
-        string identifierName = func->getIdentifierName();
-        auto iter = functions.find(identifierName);
-        if (iter != functions.end())
-        {
-            EnvironmentStack localScopes;
-            Environment env;
-            vector<string> parameters = iter->second->getParameters();
-            if (arguments.size() == iter->second->getParametersSize())
-            {
-                for (int i = 0; i < arguments.size(); ++i)
-                {
-                    env[parameters[i]] = {RuntimeValue(arguments[i]->evaluateNode(scopes)), line};
-                }
-                localScopes.pushScope(env);
-                try
-                {
-                    iter->second->evaluateBody(localScopes);
-                }
-                catch (ReturnSignal& r)
-                {
-                    return r.value;
-                }
-                localScopes.popScope();
-                return RuntimeValue(0.0);
-            }
-            validateArity(iter->second->getParametersSize(), arguments.size(), identifierName, line);
-        }
-        if (identifierName == "abs")
-        {
-            if (arguments.size() == 1)
-                return RuntimeValue(static_cast<double>(abs(arguments[0]->evaluateNode(scopes).asNumber())));
-            validateArity(1, arguments.size(), "abs", line);
-        }
-        if (identifierName == "max")
-        {
-            if (arguments.size() == 2)
-                return RuntimeValue(std::max(arguments[0]->evaluateNode(scopes).asNumber(),
-                                             arguments[1]->evaluateNode(scopes).asNumber()));
-            validateArity(2, arguments.size(), "max", line);
-        }
-        if (identifierName == "min")
-        {
-            if (arguments.size() == 2)
-                return RuntimeValue((std::min(arguments[0]->evaluateNode(scopes).asNumber(),
-                                              arguments[1]->evaluateNode(scopes).asNumber())));
-            validateArity(2, arguments.size(), "min", line);
-        }
-        if (identifierName == "avg")
-        {
-            if (!arguments.empty())
-            {
-                double avg = 0;
-                for (const auto& argument : arguments)
-                    avg += argument->evaluateNode(scopes).asNumber();
-                avg = avg / arguments.size();
-                return RuntimeValue(avg);
-            }
-            validateArity(1, arguments.size(), "avg", line);
-        }
-        if (identifierName == "print")
-        {
-            if (!arguments.empty())
-            {
-                for (const auto& argument : arguments)
-                {
-                    RuntimeValue arg = argument->evaluateNode(scopes);
-                    printRuntimeValue(arg);
-                    cout << " ";
-                }
-                cout << '\n';
-            }
-            else cout << "";
-            return RuntimeValue(0.0);
-        }
-        if (identifierName == "size")
-        {
-            if (arguments.size() == 1)
-            {
-                RuntimeValue arg = arguments[0]->evaluateNode(scopes);
-                if (arg.isArray())
-                    return RuntimeValue(static_cast<double>(arg.asArrayPtr()->size()));
-                if (arg.isString())
-                    return RuntimeValue(static_cast<double>(arg.asString().size()));
-                throw std::runtime_error("invalid operand for size method");
-            }
-            validateArity(1, arguments.size(), "size", line);
-        }
-        if (identifierName == "push")
-        {
-            if (arguments.size() == 2)
-            {
-                if (auto* var = dynamic_cast<VariableNode*>(arguments[0].get()))
-                {
-                    RuntimeValue arr = var->getReference(scopes);
-                    if (arr.isArray())
-                    {
-                        RuntimeValue value = arguments[1]->evaluateNode(scopes);
-                        arr.asArrayPtr()->push_back(value);
-                        return RuntimeValue(0.0);
-                    }
-                    throw std::runtime_error("invalid operand for push");
-                }
-            }
-        }
+        const string& f_name = func->getIdentifierName();
         try
         {
-            scopes.get(identifierName);
+            RuntimeValue obj = scopes.get(f_name).value;
+
+            if (obj.isFunctionObj())
+            {
+                auto function = obj.asFunctionObj();
+                Environment env;
+                if (arguments.size() == function.parameters.size())
+                {
+                    for (int i = 0; i < arguments.size(); ++i)
+                    {
+                        env[function.parameters[i]] = {arguments[i]->evaluateNode(scopes), line};
+                    }
+                    ScopedEnvironment local(scopes, env);
+
+                    try
+                    {
+                        function.body->evaluateNode(scopes);
+                        return {};
+                    }
+                    catch (const ReturnSignal& r)
+                    {
+                        return r.value;
+                    }
+                }
+                validateArity(function.parameters.size(), arguments.size(), f_name, line);
+            }
             throw RuntimeError("object is not callable", {
                                    .category = ErrorCategory::TypeError,
                                    .kind = ErrorKind::NotCallable,
@@ -684,12 +612,90 @@ RuntimeValue FunctionCallNode::evaluateNode(EnvironmentStack& scopes) const
         }
         catch (UndefinedVariable)
         {
+            if (f_name == "abs")
+            {
+                if (arguments.size() == 1)
+                    return abs(static_cast<int>(arguments[0]->evaluateNode(scopes).asNumber()));
+                validateArity(1, arguments.size(), "abs", line);
+            }
+            if (f_name == "max")
+            {
+                if (arguments.size() == 2)
+                    return std::max(arguments[0]->evaluateNode(scopes).asNumber(),
+                                    arguments[1]->evaluateNode(scopes).asNumber());
+                validateArity(2, arguments.size(), "max", line);
+            }
+            if (f_name == "min")
+            {
+                if (arguments.size() == 2)
+                    return std::min(arguments[0]->evaluateNode(scopes).asNumber(),
+                                    arguments[1]->evaluateNode(scopes).asNumber());
+                validateArity(2, arguments.size(), "min", line);
+            }
+            if (f_name == "avg")
+            {
+                if (!arguments.empty())
+                {
+                    double avg = 0;
+                    for (const auto& argument : arguments)
+                        avg += argument->evaluateNode(scopes).asNumber();
+                    avg = avg / arguments.size();
+                    return avg;
+                }
+                validateArity(1, arguments.size(), "avg", line);
+            }
+            if (f_name == "print")
+            {
+                if (!arguments.empty())
+                {
+                    for (const auto& argument : arguments)
+                    {
+                        RuntimeValue arg = argument->evaluateNode(scopes);
+                        printRuntimeValue(arg);
+                        cout << " ";
+                    }
+                    cout << '\n';
+                }
+                else cout << "";
+                return {};
+            }
+            if (f_name == "size")
+            {
+                if (arguments.size() == 1)
+                {
+                    RuntimeValue arg = arguments[0]->evaluateNode(scopes);
+                    if (arg.isArray())
+                        return static_cast<double>(arg.asArrayPtr()->size());
+                    if (arg.isString())
+                        return static_cast<double>(arg.asString().size());
+                    throw std::runtime_error("invalid operand for size method");
+                }
+                validateArity(1, arguments.size(), "size", line);
+            }
+            if (f_name == "push")
+            {
+                if (arguments.size() == 2)
+                {
+                    if (auto* var = dynamic_cast<VariableNode*>(arguments[0].get()))
+                    {
+                        RuntimeValue& arr = var->getReference(scopes);
+                        if (arr.isArray())
+                        {
+                            RuntimeValue value = arguments[1]->evaluateNode(scopes);
+                            arr.asArrayPtr()->push_back(value);
+                            return {};
+                        }
+                        throw std::runtime_error("invalid operand for push");
+                    }
+                }
+            }
             throw RuntimeError("function is not defined", {
                                    .category = ErrorCategory::NameError, .kind = ErrorKind::FunctionUndefined,
-                                   .identifier = identifierName, .currentLine = line
+                                   .identifier = f_name, .currentLine = line
                                });
         }
     }
+
     throw RuntimeError("object is not callable", {
                            .category = ErrorCategory::TypeError,
                            .kind = ErrorKind::NotCallable,
@@ -738,16 +744,18 @@ void validateArity(int expected_arguments, int given_arguments, string f_name, i
 
 void FunctionDeclarationNode::evaluateNode(EnvironmentStack& scopes) const
 {
-    auto iter = functions.find(identifier);
-    if (iter == functions.end())
-        functions[identifier] = this;
-    else
-        throw RuntimeError("redeclaration of function", {
-                               .category = ErrorCategory::RedeclarationError,
-                               .kind = ErrorKind::FunctionRedeclaration,
-                               .identifier = identifier,
-                               .currentLine = line
-                           });
+    auto* body_ptr = dynamic_cast<BlockNode*>(body.get());
+    scopes.declare(identifier, {FunctionObject{parameters, body_ptr}, line});
+    // auto iter = functions.find(identifier);
+    // if (iter == functions.end())
+    //     functions[identifier] = this;
+    // else
+    //     throw RuntimeError("redeclaration of function", {
+    //                            .category = ErrorCategory::RedeclarationError,
+    //                            .kind = ErrorKind::FunctionRedeclaration,
+    //                            .identifier = identifier,
+    //                            .currentLine = line
+    //                        });
 }
 
 void FunctionDeclarationNode::debugPrint(int indentLevel) const
@@ -767,7 +775,7 @@ void ReturnNode::evaluateNode(EnvironmentStack& scopes) const
 {
     if (returnStatement)
         throw ReturnSignal(returnStatement->evaluateNode(scopes));
-    throw ReturnSignal(RuntimeValue(0.0));
+    throw ReturnSignal({});
 }
 
 void ReturnNode::debugPrint(int indentLevel) const

@@ -4,14 +4,13 @@ string TokenStream::getVarName()
 {
     string name;
     int ch = is.get();
-    // ch = is.get();
-    if (isalpha(ch))
+    if (isalpha(ch) || ch == '_')
         while (true)
         {
             if (ch != EOF)
                 name += static_cast<char>(ch);
             ch = is.get();
-            if (!isalnum(ch))
+            if (!isalnum(ch) && ch != '_')
             {
                 is.unget();
                 break;
@@ -159,6 +158,7 @@ Token TokenStream::readFromStream()
         if (name == "break") return Token{.type = TokenType::Break, .line = lineNo};
         if (name == "continue") return Token{.type = TokenType::Continue, .line = lineNo};
         if (name == "for") return Token{.type = TokenType::For, .line = lineNo};
+        if (name == "null") return Token{.type = TokenType::Null, .literal = std::monostate{}, .line = lineNo};
 
         return Token{.type = TokenType::Identifier, .name = name, .line = lineNo};
     }

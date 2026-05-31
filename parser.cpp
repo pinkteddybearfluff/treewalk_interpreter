@@ -563,6 +563,11 @@ unique_ptr<ExpressionNode> parsePrimary(TokenStream& ts)
         if constexpr (DEBUG_PARSER) debugExit(parserName);
         return make_unique<NumberNode>(std::get<double>(t.literal), ts.getLineNo());
     }
+    if (t.type == TokenType::Null)
+    {
+        if constexpr (DEBUG_PARSER) debugExit(parserName);
+        return make_unique<NullNode>(std::get<std::monostate>(t.literal), ts.getLineNo());
+    }
     if (t.type == TokenType::OpenBracket)
     {
         vector<unique_ptr<ExpressionNode>> elements;

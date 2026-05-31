@@ -205,6 +205,26 @@ protected:
     int line;
 };
 
+
+class NullNode : public ExpressionNode
+{
+public:
+    NullNode(std::monostate null, int lineNo) : null{null}, line{lineNo}
+    {
+    };
+    void debugPrint(int indentLevel) const override;
+    RuntimeValue evaluateNode(EnvironmentStack& scopes) const override;
+    [[nodiscard]] bool isDeclarationTarget() const override { return false; };
+    [[nodiscard]] bool isAssignmentTarget() const override { return false; };
+    [[nodiscard]] string description() const override { return "literal"; };
+
+private:
+    std::monostate null;
+
+protected:
+    int line;
+};
+
 class ArrayNode : public ExpressionNode
 {
 public:

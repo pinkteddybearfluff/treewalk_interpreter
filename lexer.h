@@ -54,6 +54,7 @@ enum class TokenType
     Function,
     Return,
     Boolean,
+    Null,
     Break,
     Continue,
 };
@@ -61,7 +62,7 @@ enum class TokenType
 struct Token
 {
     TokenType type;
-    std::variant<bool, double, string> literal;
+    std::variant<bool, double, string, std::monostate> literal;
     std::string name;
     int line;
 };
