@@ -12,4 +12,5 @@ add_executable(interpreter
         ast.cpp
         ast.h
         stacks.cpp
-        stacks.h)
+        stacks.h
+        version.h)

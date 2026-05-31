@@ -25,7 +25,8 @@ int main(int argc, char** argv)
     auto start = std::chrono::high_resolution_clock::now();
     auto parseCompleteFlag = std::chrono::high_resolution_clock::now();
     auto evalCompleteFlag = std::chrono::high_resolution_clock::now();
-    EnvironmentStack env;
+    shared_ptr<Environment> env = std::make_shared<Environment>();
+    env->parent = nullptr;
     // string file = argv[1];
     string file = "../test/test.som";
     std::ifstream is(file);
@@ -58,8 +59,8 @@ int main(int argc, char** argv)
             program->debugPrint(0);
 
 
-        if constexpr (DEBUG_ENV)
-            env.debugEnvPrint();
+        // if constexpr (DEBUG_ENV);
+        // env.debugEnvPrint();
         auto end = std::chrono::high_resolution_clock::now();
 
         std::cout
@@ -166,8 +167,8 @@ int main(int argc, char** argv)
             color::reset << '\n';
         std::cerr << "Line " << ts.getLineNo() << " error: " << e.what() << "\n";
 
-        if constexpr (DEBUG_ENV)
-            env.debugEnvPrint();
+        if constexpr (DEBUG_ENV);
+        // env.debugEnvPrint();
         return 4;
     }
 }

@@ -18,7 +18,9 @@ fn getPrime(n){
     return res;
 }
 
+
+let prime = getPrime(100); 
+
 print(prime);
 
-let prime = 4; 
 

@@ -100,71 +100,27 @@ void printRuntimeValue(const RuntimeValue& value)
     }
 }
 
-void EnvironmentStack::popScope()
+
+VariableInfo& Environment::getReference(const string& identifier)
 {
-    if (isEmpty())
-        throw std::runtime_error("no scopes to pop");
-    scopes.pop_back();
-}
-
-// VariableInfo& Environment::getReference(const string& identifier)
-// {
-//     auto* iter = variables.find()
-// }
-
-void EnvironmentStack::pushScope()
-{
-    scopes.push_back({});
-}
-
-void EnvironmentStack::pushScope(Environment& env)
-{
-    scopes.push_back(env);
-}
-
-bool EnvironmentStack::isEmpty()
-{
-    if (scopes.size() <= 1)
-        return true;
-    return false;
-}
-
-
-void EnvironmentStack::declare(string name, VariableInfo data)
-{
-    for (int i = scopes.size() - 1; i >= 0; --i)
+    const auto& iter = variables.find(identifier);
+    if (iter != variables.end())
     {
-        auto iter = scopes[i].find(name);
-        if (iter != scopes[i].end())
-            throw Redeclaration();
+        return iter->second;
     }
-    Environment& env = scopes.back();
-    env[name] = data;
-}
-
-VariableInfo& EnvironmentStack::get(const string& name)
-{
-    for (int i = scopes.size() - 1; i >= 0; --i)
+    if (parent)
     {
-        auto iter = scopes[i].find(name);
-        if (iter != scopes[i].end())
-            return iter->second;
+        return parent->getReference(identifier);
     }
     throw UndefinedVariable();
 }
 
-void EnvironmentStack::debugEnvPrint()
+void Environment::declare(string name, VariableInfo data)
 {
-    int i = 0;
-    for (auto& env : scopes)
-    {
-        std::cout << string(2 * i, ' ') << "Level " << i << ":\n";
-        for (auto& var : env)
-        {
-            std::cout << string(i * 2, ' ') << var.first << ": ";
-            printRuntimeValue(var.second.value);
-            std::cout << "\n";
-        }
-        ++i;
-    }
+    auto iter = variables.find(name);
+
+
+    if (iter == variables.end())
+        variables[name] = data;
+    else throw Redeclaration();
 }

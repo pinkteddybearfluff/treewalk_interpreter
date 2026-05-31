@@ -151,35 +151,35 @@ struct VariableInfo
     int declarationLine;
 };
 
-using Environment = map<string, VariableInfo>;
+// using Environment = map<string, VariableInfo>;
 
-// struct Environment
-// {
-//     std::map<string, VariableInfo> variables;
-//     shared_ptr<Environment> parent;
-//     VariableInfo& getReference(const string& identifier);
-//     void declare();
-// };
-
-
-class EnvironmentStack
+struct Environment
 {
-public:
-    EnvironmentStack() : scopes{{}}
-    {
-    };
-    void pushScope();
-    void pushScope(Environment& env);
-    void popScope();
-    bool isEmpty();
-
-    VariableInfo& get(const string& name);
+    std::map<string, VariableInfo> variables;
+    shared_ptr<Environment> parent;
+    VariableInfo& getReference(const string& identifier);
     void declare(string name, VariableInfo data);
-    void debugEnvPrint();
-
-private:
-    vector<Environment> scopes;
 };
+
+
+// class EnvironmentStack
+// {
+// public:
+//     EnvironmentStack() : scopes{{}}
+//     {
+//     };
+//     void pushScope();
+//     void pushScope(Environment& env);
+//     void popScope();
+//     bool isEmpty();
+//
+//     VariableInfo& get(const string& name);
+//     void declare(string name, VariableInfo data);
+//     void debugEnvPrint();
+//
+// private:
+//     vector<Environment> scopes;
+// };
 
 class UndefinedVariable
 {
@@ -189,26 +189,26 @@ class Redeclaration
 {
 };
 
-class ScopedEnvironment
-{
-public:
-    ScopedEnvironment(EnvironmentStack& scopes) : scopes{scopes}
-    {
-        this->scopes.pushScope();
-    };
-
-    ScopedEnvironment(EnvironmentStack& scopes, Environment& env) : scopes{scopes}
-    {
-        this->scopes.pushScope(env);
-    };
-
-    ~ScopedEnvironment()
-    {
-        scopes.popScope();
-    }
-
-private:
-    EnvironmentStack& scopes;
-};
+// class ScopedEnvironment
+// {
+// public:
+//     ScopedEnvironment(EnvironmentStack& scopes) : scopes{scopes}
+//     {
+//         this->scopes.pushScope();
+//     };
+//
+//     ScopedEnvironment(EnvironmentStack& scopes, Environment& env) : scopes{scopes}
+//     {
+//         this->scopes.pushScope(env);
+//     };
+//
+//     ~ScopedEnvironment()
+//     {
+//         scopes.popScope();
+//     }
+//
+// private:
+//     EnvironmentStack& scopes;
+// };
 
 #endif //INTERPRETER_STACKS_H

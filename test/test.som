@@ -1,9 +1,10 @@
-fn inc(a){
-    a = a+1;
-    print(a);
+fn outer(){
+    fn inner(){
+        print([true,false,null]);
+    }
+    return inner;
 }
 
-let c = 0;
-inc(c);
-inc(c);
-inc(c);
+let func = outer;
+let inf = func();
+inf();

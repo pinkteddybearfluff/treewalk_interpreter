@@ -7,7 +7,7 @@ using std::cout;
 constexpr int IndentSize = 2;
 FunctionTable functions;
 
-RuntimeValue NumberNode::evaluateNode(EnvironmentStack& scopes) const
+RuntimeValue NumberNode::evaluateNode(shared_ptr<Environment> env) const
 {
     return value;
 }
@@ -17,7 +17,7 @@ void NumberNode::debugPrint(int indentLevel) const
     cout << "Number(" << value << ")\n";
 }
 
-RuntimeValue StringNode::evaluateNode(EnvironmentStack& scopes) const
+RuntimeValue StringNode::evaluateNode(shared_ptr<Environment> env) const
 {
     return value;
 }
@@ -27,9 +27,9 @@ void StringNode::debugPrint(int indentLevel) const
     cout << "String(" << value << ")\n";
 }
 
-RuntimeValue UnaryNode::evaluateNode(EnvironmentStack& scopes) const
+RuntimeValue UnaryNode::evaluateNode(shared_ptr<Environment> env) const
 {
-    RuntimeValue value = child->evaluateNode(scopes);
+    RuntimeValue value = child->evaluateNode(env);
     if (value.isNumber())
     {
         if (op.type == TokenType::Minus)
@@ -53,12 +53,12 @@ void BooleanNode::debugPrint(int indentLevel) const
     cout << "Boolean(" << ((value == true) ? "true" : "false") << ")\n";
 }
 
-RuntimeValue BooleanNode::evaluateNode(EnvironmentStack& scopes) const
+RuntimeValue BooleanNode::evaluateNode(shared_ptr<Environment> env) const
 {
     return value;
 }
 
-RuntimeValue NullNode::evaluateNode(EnvironmentStack& scopes) const
+RuntimeValue NullNode::evaluateNode(shared_ptr<Environment> env) const
 {
     return {};
 }
@@ -69,13 +69,13 @@ void NullNode::debugPrint(int indentLevel) const
 }
 
 
-RuntimeValue ArrayNode::evaluateNode(EnvironmentStack& scopes) const
+RuntimeValue ArrayNode::evaluateNode(shared_ptr<Environment> env) const
 {
     shared_ptr<vector<RuntimeValue>> arrayPtr = std::make_shared<vector<RuntimeValue>>();
 
     for (int i = 0; i < value.size(); ++i)
     {
-        arrayPtr->push_back(value[i]->evaluateNode(scopes));
+        arrayPtr->push_back(value[i]->evaluateNode(env));
     }
     return arrayPtr;
 }
@@ -91,10 +91,10 @@ void ArrayNode::debugPrint(int indentLevel) const
     cout << string(indentLevel * IndentSize, ' ') << "]\n";
 }
 
-RuntimeValue IndexNode::evaluateNode(EnvironmentStack& scopes) const
+RuntimeValue IndexNode::evaluateNode(shared_ptr<Environment> env) const
 {
-    const RuntimeValue& object = operand->evaluateNode(scopes);
-    const RuntimeValue indexV = indexExp->evaluateNode(scopes);
+    const RuntimeValue& object = operand->evaluateNode(env);
+    const RuntimeValue indexV = indexExp->evaluateNode(env);
     if (indexV.isNumber())
     {
         const int index = static_cast<int>(indexV.asNumber());
@@ -134,20 +134,20 @@ RuntimeValue IndexNode::evaluateNode(EnvironmentStack& scopes) const
                        });
 }
 
-RuntimeValue& IndexNode::getReference(EnvironmentStack& scopes)
+RuntimeValue& IndexNode::getReference(shared_ptr<Environment> env)
 {
-    const RuntimeValue indexV = indexExp->evaluateNode(scopes);
+    const RuntimeValue indexV = indexExp->evaluateNode(env);
     if (indexV.isNumber())
     {
         if (auto* var = dynamic_cast<VariableNode*>(operand.get()))
         {
-            const RuntimeValue& object = var->getReference(scopes);
+            const RuntimeValue& object = var->getReference(env);
             if (object.isArray())
                 return object.asArrayPtr()->at(indexV.asNumber());
         }
         if (auto* indexNode = dynamic_cast<IndexNode*>(operand.get()))
         {
-            const RuntimeValue& object = indexNode->getReference(scopes);
+            const RuntimeValue& object = indexNode->getReference(env);
 
             const int index = static_cast<int>(indexV.asNumber());
             if (object.isArray())
@@ -187,10 +187,10 @@ void IndexNode::debugPrint(int indentLevel) const
     cout << "]\n";
 }
 
-RuntimeValue BinaryNode::evaluateNode(EnvironmentStack& scopes) const
+RuntimeValue BinaryNode::evaluateNode(shared_ptr<Environment> env) const
 {
-    RuntimeValue lval = left->evaluateNode(scopes);
-    RuntimeValue rval = right->evaluateNode(scopes);
+    RuntimeValue lval = left->evaluateNode(env);
+    RuntimeValue rval = right->evaluateNode(env);
 
     try
     {
@@ -327,9 +327,9 @@ void BinaryNode::debugPrint(int indentLevel) const
     right->debugPrint(indentLevel + 1);
 }
 
-void ExpressionStatementNode::evaluateNode(EnvironmentStack& scopes) const
+void ExpressionStatementNode::evaluateNode(shared_ptr<Environment> env) const
 {
-    expressionStmt->evaluateNode(scopes);
+    expressionStmt->evaluateNode(env);
 }
 
 void ExpressionStatementNode::debugPrint(int indentLevel) const
@@ -338,11 +338,11 @@ void ExpressionStatementNode::debugPrint(int indentLevel) const
     expressionStmt->debugPrint(indentLevel + 1);
 }
 
-RuntimeValue VariableNode::evaluateNode(EnvironmentStack& scopes) const
+RuntimeValue VariableNode::evaluateNode(shared_ptr<Environment> env) const
 {
     try
     {
-        return scopes.get(identifierName).value;
+        return env->getReference(identifierName).value;
     }
     catch (UndefinedVariable)
     {
@@ -353,11 +353,11 @@ RuntimeValue VariableNode::evaluateNode(EnvironmentStack& scopes) const
     }
 }
 
-RuntimeValue& VariableNode::getReference(EnvironmentStack& scopes)
+RuntimeValue& VariableNode::getReference(shared_ptr<Environment> env)
 {
     try
     {
-        return scopes.get(identifierName).value;
+        return env->getReference(identifierName).value;
     }
     catch (UndefinedVariable)
     {
@@ -374,16 +374,16 @@ void VariableNode::debugPrint(int i) const
     cout << "Variable(" << identifierName << ")\n";
 }
 
-RuntimeValue AssignmentNode::evaluateNode(EnvironmentStack& scopes) const
+RuntimeValue AssignmentNode::evaluateNode(shared_ptr<Environment> env) const
 {
-    RuntimeValue right = rvalue->evaluateNode(scopes);
+    RuntimeValue right = rvalue->evaluateNode(env);
     if (auto* var = dynamic_cast<VariableNode*>(lvalue.get()))
     {
-        var->getReference(scopes) = right;
+        var->getReference(env) = right;
     }
     if (auto* indexElem = dynamic_cast<IndexNode*>(lvalue.get()))
     {
-        indexElem->getReference(scopes) = right;
+        indexElem->getReference(env) = right;
     }
     return right;
 }
@@ -397,13 +397,14 @@ void AssignmentNode::debugPrint(int indentLevel) const
     rvalue->debugPrint(indentLevel + 1);
 }
 
-void DeclarationNode::evaluateNode(EnvironmentStack& scopes) const
+void DeclarationNode::evaluateNode(shared_ptr<Environment> env) const
 {
-    RuntimeValue right = rvalue->evaluateNode(scopes);
+    RuntimeValue right = rvalue->evaluateNode(env);
     if (auto* var = dynamic_cast<VariableNode*>(lvalue.get()))
+    {
         try
         {
-            scopes.declare(var->getIdentifierName(), {right, line});
+            env->declare(var->getIdentifierName(), {right, line});
         }
         catch (Redeclaration)
         {
@@ -412,9 +413,10 @@ void DeclarationNode::evaluateNode(EnvironmentStack& scopes) const
                                    .kind = ErrorKind::VariableRedeclaration,
                                    .identifier = var->getIdentifierName(),
                                    .currentLine = line,
-                                   .previousLine = scopes.get(var->getIdentifierName()).declarationLine
+                                   .previousLine = env->getReference(var->getIdentifierName()).declarationLine
                                });
         }
+    }
 }
 
 void DeclarationNode::debugPrint(int indentLevel) const
@@ -426,21 +428,21 @@ void DeclarationNode::debugPrint(int indentLevel) const
     rvalue->debugPrint(indentLevel + 1);
 }
 
-void IfNode::evaluateNode(EnvironmentStack& scopes) const
+void IfNode::evaluateNode(shared_ptr<Environment> env) const
 {
-    scopes.pushScope();
-    RuntimeValue truthVal = condition->evaluateNode(scopes);
+    auto currentEnv = std::make_shared<Environment>();
+    currentEnv->parent = env;
+
+    RuntimeValue truthVal = condition->evaluateNode(currentEnv);
 
     if (truthVal.isTruthy())
-        thenStatement->evaluateNode(scopes);
+        thenStatement->evaluateNode(currentEnv);
 
     else
     {
         if (elseStatement)
-            elseStatement->evaluateNode(scopes);
+            elseStatement->evaluateNode(currentEnv);
     }
-
-    scopes.popScope();
 }
 
 
@@ -460,14 +462,17 @@ void IfNode::debugPrint(int indentLevel) const
     }
 }
 
-void WhileNode::evaluateNode(EnvironmentStack& scopes) const
+void WhileNode::evaluateNode(shared_ptr<Environment> env) const
 {
-    while (condition->evaluateNode(scopes).isTruthy())
+    auto currentEnv = std::make_shared<Environment>();
+    currentEnv->parent = env;
+
+    while (condition->evaluateNode(currentEnv).isTruthy())
     {
         try
         {
-            ScopedEnvironment local(scopes);
-            statement->evaluateNode(scopes);
+            // ScopedEnvironment local(currentEnv);
+            statement->evaluateNode(currentEnv);
         }
         catch (BreakSignal b)
         {
@@ -488,36 +493,35 @@ void WhileNode::debugPrint(int indentLevel) const
     statement->debugPrint(indentLevel + 1);
 }
 
-void ForNode::evaluateNode(EnvironmentStack& scopes) const
+void ForNode::evaluateNode(shared_ptr<Environment> env) const
 {
-    ScopedEnvironment local(scopes);
+    auto currentEnv = std::make_shared<Environment>();
+    currentEnv->parent = env;
+    // ScopedEnvironment local(scopes);
     if (initializer)
-        initializer->evaluateNode(scopes);
+        initializer->evaluateNode(currentEnv);
 
     while (true)
     {
         try
         {
             if (condition)
-                if (!condition->evaluateNode(scopes).isTruthy())
+                if (!condition->evaluateNode(currentEnv).isTruthy())
                     break;
 
-            statement->evaluateNode(scopes);
-            if (expr) expr->evaluateNode(scopes);
+            statement->evaluateNode(currentEnv);
+            if (expr) expr->evaluateNode(currentEnv);
         }
         catch (BreakSignal b)
         {
-            scopes.popScope();
             break;
         }
         catch (ContinueSignal c)
         {
-            if (expr) expr->evaluateNode(scopes);
-            scopes.popScope();
+            if (expr) expr->evaluateNode(currentEnv);
             continue;
         }
     }
-    scopes.popScope();
 }
 
 void ForNode::debugPrint(int indentLevel) const
@@ -530,7 +534,7 @@ void ForNode::debugPrint(int indentLevel) const
     statement->debugPrint(indentLevel + 1);
 }
 
-void BreakNode::evaluateNode(EnvironmentStack& scopes) const
+void BreakNode::evaluateNode(shared_ptr<Environment> env) const
 {
     throw BreakSignal();
 }
@@ -540,7 +544,7 @@ void BreakNode::debugPrint(int indentLevel) const
     cout << "Break\n";
 }
 
-void ContinueNode::evaluateNode(EnvironmentStack& scopes) const
+void ContinueNode::evaluateNode(shared_ptr<Environment> env) const
 {
     throw ContinueSignal();
 }
@@ -550,12 +554,12 @@ void ContinueNode::debugPrint(int indentLevel) const
     cout << "Continue\n";
 }
 
-void BlockNode::evaluateNode(EnvironmentStack& scopes) const
+void BlockNode::evaluateNode(shared_ptr<Environment> env) const
 {
-    ScopedEnvironment local(scopes);
+    // ScopedEnvironment local(env);
     for (auto& statement : statements)
     {
-        statement->evaluateNode(scopes);
+        statement->evaluateNode(env);
     }
 }
 
@@ -570,30 +574,30 @@ void BlockNode::debugPrint(int indentLevel) const
     cout << string(IndentSize * indentLevel, ' ') << "}\n";
 }
 
-RuntimeValue FunctionCallNode::evaluateNode(EnvironmentStack& scopes) const
+RuntimeValue FunctionCallNode::evaluateNode(shared_ptr<Environment> env) const
 {
     if (auto* func = dynamic_cast<VariableNode*>(identifier.get()))
     {
         const string& f_name = func->getIdentifierName();
         try
         {
-            RuntimeValue obj = scopes.get(f_name).value;
+            RuntimeValue obj = env->getReference(f_name).value;
 
             if (obj.isFunctionObj())
             {
                 auto function = obj.asFunctionObj();
-                Environment env;
+                auto currentEnv = std::make_shared<Environment>();
                 if (arguments.size() == function.parameters.size())
                 {
                     for (int i = 0; i < arguments.size(); ++i)
                     {
-                        env[function.parameters[i]] = {arguments[i]->evaluateNode(scopes), line};
+                        currentEnv->variables[function.parameters[i]] = {arguments[i]->evaluateNode(env), line};
                     }
-                    ScopedEnvironment local(scopes, env);
+                    // ScopedEnvironment local(scopes, env);
 
                     try
                     {
-                        function.body->evaluateNode(scopes);
+                        function.body->evaluateNode(currentEnv);
                         return {};
                     }
                     catch (const ReturnSignal& r)
@@ -606,7 +610,7 @@ RuntimeValue FunctionCallNode::evaluateNode(EnvironmentStack& scopes) const
             throw RuntimeError("object is not callable", {
                                    .category = ErrorCategory::TypeError,
                                    .kind = ErrorKind::NotCallable,
-                                   .primary = identifier->evaluateNode(scopes).description(),
+                                   .primary = identifier->evaluateNode(env).description(),
                                    .currentLine = line,
                                });
         }
@@ -615,21 +619,21 @@ RuntimeValue FunctionCallNode::evaluateNode(EnvironmentStack& scopes) const
             if (f_name == "abs")
             {
                 if (arguments.size() == 1)
-                    return abs(static_cast<int>(arguments[0]->evaluateNode(scopes).asNumber()));
+                    return abs(static_cast<int>(arguments[0]->evaluateNode(env).asNumber()));
                 validateArity(1, arguments.size(), "abs", line);
             }
             if (f_name == "max")
             {
                 if (arguments.size() == 2)
-                    return std::max(arguments[0]->evaluateNode(scopes).asNumber(),
-                                    arguments[1]->evaluateNode(scopes).asNumber());
+                    return std::max(arguments[0]->evaluateNode(env).asNumber(),
+                                    arguments[1]->evaluateNode(env).asNumber());
                 validateArity(2, arguments.size(), "max", line);
             }
             if (f_name == "min")
             {
                 if (arguments.size() == 2)
-                    return std::min(arguments[0]->evaluateNode(scopes).asNumber(),
-                                    arguments[1]->evaluateNode(scopes).asNumber());
+                    return std::min(arguments[0]->evaluateNode(env).asNumber(),
+                                    arguments[1]->evaluateNode(env).asNumber());
                 validateArity(2, arguments.size(), "min", line);
             }
             if (f_name == "avg")
@@ -638,7 +642,7 @@ RuntimeValue FunctionCallNode::evaluateNode(EnvironmentStack& scopes) const
                 {
                     double avg = 0;
                     for (const auto& argument : arguments)
-                        avg += argument->evaluateNode(scopes).asNumber();
+                        avg += argument->evaluateNode(env).asNumber();
                     avg = avg / arguments.size();
                     return avg;
                 }
@@ -650,7 +654,7 @@ RuntimeValue FunctionCallNode::evaluateNode(EnvironmentStack& scopes) const
                 {
                     for (const auto& argument : arguments)
                     {
-                        RuntimeValue arg = argument->evaluateNode(scopes);
+                        RuntimeValue arg = argument->evaluateNode(env);
                         printRuntimeValue(arg);
                         cout << " ";
                     }
@@ -663,7 +667,7 @@ RuntimeValue FunctionCallNode::evaluateNode(EnvironmentStack& scopes) const
             {
                 if (arguments.size() == 1)
                 {
-                    RuntimeValue arg = arguments[0]->evaluateNode(scopes);
+                    RuntimeValue arg = arguments[0]->evaluateNode(env);
                     if (arg.isArray())
                         return static_cast<double>(arg.asArrayPtr()->size());
                     if (arg.isString())
@@ -678,10 +682,10 @@ RuntimeValue FunctionCallNode::evaluateNode(EnvironmentStack& scopes) const
                 {
                     if (auto* var = dynamic_cast<VariableNode*>(arguments[0].get()))
                     {
-                        RuntimeValue& arr = var->getReference(scopes);
+                        RuntimeValue& arr = var->getReference(env);
                         if (arr.isArray())
                         {
-                            RuntimeValue value = arguments[1]->evaluateNode(scopes);
+                            RuntimeValue value = arguments[1]->evaluateNode(env);
                             arr.asArrayPtr()->push_back(value);
                             return {};
                         }
@@ -699,7 +703,7 @@ RuntimeValue FunctionCallNode::evaluateNode(EnvironmentStack& scopes) const
     throw RuntimeError("object is not callable", {
                            .category = ErrorCategory::TypeError,
                            .kind = ErrorKind::NotCallable,
-                           .primary = identifier->evaluateNode(scopes).description(),
+                           .primary = identifier->evaluateNode(env).description(),
                            .currentLine = line,
                        });
 }
@@ -742,10 +746,10 @@ void validateArity(int expected_arguments, int given_arguments, string f_name, i
     }
 }
 
-void FunctionDeclarationNode::evaluateNode(EnvironmentStack& scopes) const
+void FunctionDeclarationNode::evaluateNode(shared_ptr<Environment> env) const
 {
     auto* body_ptr = dynamic_cast<BlockNode*>(body.get());
-    scopes.declare(identifier, {FunctionObject{parameters, body_ptr}, line});
+    env->declare(identifier, {FunctionObject{parameters, body_ptr}, line});
     // auto iter = functions.find(identifier);
     // if (iter == functions.end())
     //     functions[identifier] = this;
@@ -771,10 +775,10 @@ void FunctionDeclarationNode::debugPrint(int indentLevel) const
     body->debugPrint(indentLevel + 1);
 }
 
-void ReturnNode::evaluateNode(EnvironmentStack& scopes) const
+void ReturnNode::evaluateNode(shared_ptr<Environment> env) const
 {
     if (returnStatement)
-        throw ReturnSignal(returnStatement->evaluateNode(scopes));
+        throw ReturnSignal(returnStatement->evaluateNode(env));
     throw ReturnSignal({});
 }
 
@@ -786,10 +790,10 @@ void ReturnNode::debugPrint(int indentLevel) const
         returnStatement->debugPrint(indentLevel + 1);
 }
 
-void ProgramNode::evaluateNode(EnvironmentStack& scopes)
+void ProgramNode::evaluateNode(shared_ptr<Environment> env)
 {
     for (auto& stmt : statements)
-        stmt->evaluateNode(scopes);
+        stmt->evaluateNode(env);
 }
 
 void ProgramNode::debugPrint(int indentLevel)
@@ -802,7 +806,7 @@ void ProgramNode::debugPrint(int indentLevel)
     }
 }
 
-void EmptyNode::evaluateNode(EnvironmentStack& scopes) const
+void EmptyNode::evaluateNode(shared_ptr<Environment> env) const
 {
 }
 
