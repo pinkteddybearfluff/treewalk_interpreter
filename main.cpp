@@ -28,7 +28,7 @@ int main(int argc, char** argv)
     shared_ptr<Environment> env = std::make_shared<Environment>();
     env->parent = nullptr;
     // string file = argv[1];
-    string file = "../test/test.som";
+    string file = "../test/functions.som";
     std::ifstream is(file);
     if (!is.is_open())
     {

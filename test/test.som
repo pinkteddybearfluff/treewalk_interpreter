@@ -1,10 +1,11 @@
 fn outer(){
+    let x = 10;
     fn inner(){
-        print([true,false,null]);
+        print(x);
     }
+    x = 20;
     return inner;
 }
 
-let func = outer;
-let inf = func();
-inf();
+let f = outer();
+f();

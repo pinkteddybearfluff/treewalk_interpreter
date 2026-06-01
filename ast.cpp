@@ -586,24 +586,13 @@ RuntimeValue FunctionCallNode::evaluateNode(shared_ptr<Environment> env) const
             if (obj.isFunctionObj())
             {
                 auto function = obj.asFunctionObj();
-                auto currentEnv = std::make_shared<Environment>();
+                vector<RuntimeValue> args;
                 if (arguments.size() == function.parameters.size())
                 {
-                    for (int i = 0; i < arguments.size(); ++i)
-                    {
-                        currentEnv->variables[function.parameters[i]] = {arguments[i]->evaluateNode(env), line};
-                    }
-                    // ScopedEnvironment local(scopes, env);
+                    for (const auto& argument : arguments)
+                        args.push_back(argument->evaluateNode(env));
 
-                    try
-                    {
-                        function.body->evaluateNode(currentEnv);
-                        return {};
-                    }
-                    catch (const ReturnSignal& r)
-                    {
-                        return r.value;
-                    }
+                    return function.call(args);
                 }
                 validateArity(function.parameters.size(), arguments.size(), f_name, line);
             }
@@ -699,6 +688,29 @@ RuntimeValue FunctionCallNode::evaluateNode(shared_ptr<Environment> env) const
                                });
         }
     }
+    if (auto* func = dynamic_cast<FunctionCallNode*>(identifier.get()))
+    {
+        RuntimeValue obj = identifier->evaluateNode(env);
+        if (obj.isFunctionObj())
+        {
+            auto function = obj.asFunctionObj();
+            vector<RuntimeValue> args;
+            if (arguments.size() == function.parameters.size())
+            {
+                for (const auto& argument : arguments)
+                    args.push_back(argument->evaluateNode(env));
+
+                return function.call(args);
+            }
+            validateArity(function.parameters.size(), arguments.size(), function.f_name, line);
+        }
+        throw RuntimeError("object is not callable", {
+                               .category = ErrorCategory::TypeError,
+                               .kind = ErrorKind::NotCallable,
+                               .primary = identifier->evaluateNode(env).description(),
+                               .currentLine = line,
+                           });
+    }
 
     throw RuntimeError("object is not callable", {
                            .category = ErrorCategory::TypeError,
@@ -712,11 +724,27 @@ RuntimeValue FunctionCallNode::evaluateNode(shared_ptr<Environment> env) const
 void FunctionCallNode::debugPrint(int indentLevel) const
 {
     if (auto* func = dynamic_cast<VariableNode*>(identifier.get()))
-        cout << "Function(" << func->getIdentifierName() << ")\n";
-    for (const auto& argument : arguments)
     {
-        cout << string(IndentSize * indentLevel, ' ');
-        argument->debugPrint(indentLevel + 1);
+        cout << "FunctionCall{\n";
+        cout << "Function(" << func->getIdentifierName() << ")\n";
+        for (const auto& argument : arguments)
+        {
+            cout << string(IndentSize * indentLevel, ' ');
+            argument->debugPrint(indentLevel + 1);
+        }
+        cout << "}\n";
+    }
+    if (auto* func = dynamic_cast<FunctionCallNode*>(identifier.get()))
+    {
+        cout << "FunctionCall{\n";
+
+        func->debugPrint(indentLevel + 1);
+        for (const auto& argument : arguments)
+        {
+            cout << string(IndentSize * indentLevel, ' ');
+            argument->debugPrint(indentLevel + 1);
+        }
+        cout << "}\n";
     }
 }
 
@@ -749,7 +777,7 @@ void validateArity(int expected_arguments, int given_arguments, string f_name, i
 void FunctionDeclarationNode::evaluateNode(shared_ptr<Environment> env) const
 {
     auto* body_ptr = dynamic_cast<BlockNode*>(body.get());
-    env->declare(identifier, {FunctionObject{parameters, body_ptr}, line});
+    env->declare(identifier, {FunctionObject{identifier, parameters, body_ptr, env}, line});
     // auto iter = functions.find(identifier);
     // if (iter == functions.end())
     //     functions[identifier] = this;

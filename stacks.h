@@ -14,6 +14,8 @@ using std::map;
 using std::shared_ptr;
 
 class BlockNode;
+struct Environment;
+class RuntimeValue;
 
 constexpr bool DEBUG_ENV = true;
 
@@ -38,10 +40,15 @@ namespace color
 
 struct FunctionObject
 {
+    string f_name;
     vector<string> parameters;
     const BlockNode* body;
+    shared_ptr<Environment> closure;
+    RuntimeValue call(const vector<RuntimeValue>& arguments) const;
 };
 
+// Runtime value type is decided at run time.
+// Allowing for dynamically type language like usage.
 class RuntimeValue
 {
 public:
@@ -151,8 +158,10 @@ struct VariableInfo
     int declarationLine;
 };
 
-// using Environment = map<string, VariableInfo>;
-
+// Represents lexical scope.
+//
+// Variables are declared in current environment.
+// To lookup variables starts from current Environment -> parent Environment -> Global Enviroment
 struct Environment
 {
     std::map<string, VariableInfo> variables;
@@ -162,25 +171,6 @@ struct Environment
 };
 
 
-// class EnvironmentStack
-// {
-// public:
-//     EnvironmentStack() : scopes{{}}
-//     {
-//     };
-//     void pushScope();
-//     void pushScope(Environment& env);
-//     void popScope();
-//     bool isEmpty();
-//
-//     VariableInfo& get(const string& name);
-//     void declare(string name, VariableInfo data);
-//     void debugEnvPrint();
-//
-// private:
-//     vector<Environment> scopes;
-// };
-
 class UndefinedVariable
 {
 };
@@ -189,26 +179,5 @@ class Redeclaration
 {
 };
 
-// class ScopedEnvironment
-// {
-// public:
-//     ScopedEnvironment(EnvironmentStack& scopes) : scopes{scopes}
-//     {
-//         this->scopes.pushScope();
-//     };
-//
-//     ScopedEnvironment(EnvironmentStack& scopes, Environment& env) : scopes{scopes}
-//     {
-//         this->scopes.pushScope(env);
-//     };
-//
-//     ~ScopedEnvironment()
-//     {
-//         scopes.popScope();
-//     }
-//
-// private:
-//     EnvironmentStack& scopes;
-// };
 
 #endif //INTERPRETER_STACKS_H

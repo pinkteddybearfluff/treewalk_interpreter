@@ -1,15 +1,51 @@
-#include <iostream>
+RuntimeValue FunctionCallNode::evaluateNode(shared_ptr<Environment> env) const
+{
+    const string& f_name = func->getIdentifierName();
+    RuntimeValue obj = env->getReference(f_name).value;
+    if (obj.isFunctionObj())
+    {
+        auto function = obj.asFunctionObj();
+        auto callEnv = std::make_shared<Environment>();
+        callEnv->parent = function.capturedEnv;
+        if (arguments.size() == function.parameters.size())
+        {
+            for (int i = 0; i < arguments.size(); ++i)
+            {
+                callEnv->variables[function.parameters[i]] = {
+                    arguments[i]->evaluateNode(env), line
+                };
+            }
 
-int add(int a, int b){
-    return a+b;
+            try
+            {
+                function.body->evaluateNode(callEnv);
+                return {};
+            }
+            catch (const ReturnSignal& r)
+            {
+                return r.value;
+            }
+        }
+    }
 }
 
-// int add(int a,int b){
-//     return a;
-// }
-
-int main() {
-
-    int arr[] = {3,4,5};
-    int a= arr["he"];
+void FunctionDeclarationNode::evaluateNode(shared_ptr<Environment> env) const
+{
+    auto* body_ptr = dynamic_cast<BlockNode*>(body.get());
+    env->declare(identifier, {FunctionObject{parameters, body_ptr, env}, line});
 }
+
+struct FunctionObject
+{
+    vector<string> parameters;
+    const BlockNode* body;
+    shared_ptr<Environment> capturedEnv;
+};
+
+struct Environment
+{
+    std::map<string, VariableInfo> variables;
+    shared_ptr<Environment> parent;
+    VariableInfo& getReference(const string& identifier);
+    void declare(string name, VariableInfo data);
+};

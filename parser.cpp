@@ -37,7 +37,9 @@ bool match(TokenType tkType, TokenStream& ts)
 {
     if (check(tkType, ts))
     {
-        ts.getNextToken();
+        Token t = ts.getNextToken();
+        if constexpr (DEBUG_PARSER)
+            debugConsume("match", t);
         return true;
     }
     return false;
@@ -156,7 +158,7 @@ unique_ptr<StatementNode> parseStatement(TokenStream& ts)
     }
     if (check(TokenType::Return, ts))
     {
-        if (functionLevel > 0)
+        // if (functionLevel > 0)
         {
             match(TokenType::Return, ts);
             if (match(TokenType::Semicolon, ts)) return make_unique<ReturnNode>();
@@ -535,6 +537,31 @@ unique_ptr<ExpressionNode> parsePostFix(TokenStream& ts)
         expr = make_unique<IndexNode>(std::move(expr), parseEquality(ts), ts.getLineNo());
         consume(TokenType::CloseBracket, "expected ']' after index", ts);
     }
+    while (match(TokenType::OpenParen, ts))
+    {
+        if (match(TokenType::CloseParen, ts))
+            expr = make_unique<FunctionCallNode>(std::move(expr), ts.getLineNo());
+        else
+        {
+            vector<unique_ptr<ExpressionNode>> argumentNodes;
+            while (true)
+            {
+                argumentNodes.push_back(parseEquality(ts));
+
+                if (match(TokenType::CloseParen, ts))
+                {
+                    expr = make_unique<FunctionCallNode>(std::move(expr),
+                                                         std::move(argumentNodes), ts.getLineNo());
+                    break;
+                }
+
+                if (match(TokenType::Comma, ts))
+                {
+                    continue;
+                };
+            }
+        }
+    }
     if constexpr (DEBUG_PARSER) debugExit(parserName);
 
     return expr;
@@ -595,52 +622,6 @@ unique_ptr<ExpressionNode> parsePrimary(TokenStream& ts)
     if (t.type == TokenType::Identifier)
     {
         string name = t.name;
-
-        if (match(TokenType::OpenParen, ts))
-        {
-            // Correct Case 1: func();
-            if (match(TokenType::CloseParen, ts))
-            {
-                if constexpr (DEBUG_PARSER) debugExit(parserName);
-                return make_unique<FunctionCallNode>(make_unique<VariableNode>(name, ts.getLineNo()), ts.getLineNo());
-            }
-            // Error Case 5 : func(;
-            if (match(TokenType::Semicolon, ts)) throw ParserError("expected ')' before ';'", ts.getLineNo());
-
-            vector<unique_ptr<ExpressionNode>> argumentNodes;
-            while (true)
-            {
-                // Error Case 2 and 3: func(Exp , ,); and func(, Exp);
-                if (match(TokenType::Comma, ts))
-                    throw ParserError("expected expression before ',' token", ts.getLineNo());
-
-                argumentNodes.push_back(parseEquality(ts));
-
-                // Correct Case 2: func(Exp, Exp);
-                if (match(TokenType::CloseParen, ts))
-                {
-                    if constexpr (DEBUG_LEXER) debugExit(parserName);
-                    return make_unique<FunctionCallNode>(make_unique<VariableNode>(name, ts.getLineNo()),
-                                                         std::move(argumentNodes), ts.getLineNo());
-                }
-
-                // Error Case 4: func(Exp, Exp;
-                if (match(TokenType::Semicolon, ts)) throw ParserError("expected ')' before ';'", ts.getLineNo());
-
-                if (match(TokenType::Comma, ts))
-                {
-                    // Error Case 6: func(Exp, );
-                    if (match(TokenType::CloseParen, ts))
-                        throw ParserError("expected expression before ')'", ts.getLineNo());
-                    // Correct Case 3; func(Exp, Exp, ...);
-                    continue;
-                };
-
-                // Error Case 1: func(Exp Exp);
-                throw ParserError("expected ',' before expression", ts.getLineNo());
-            }
-        }
-
         if constexpr (DEBUG_PARSER) debugExit(parserName);
         return make_unique<VariableNode>(name, ts.getLineNo());
     }

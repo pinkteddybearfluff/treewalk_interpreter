@@ -3,7 +3,7 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to Semantic Versioning.
+and this project uses a scheme similar to semantic versioning, however it does not strictly adhere to it.
 
 ## [Unreleased]
 
@@ -145,8 +145,6 @@ and this project adheres to Semantic Versioning.
 ### Added
 
 - Added helper utility functions for parser.
-
-### Added
 
 ## [0.3.0] - 2026-05-19
 

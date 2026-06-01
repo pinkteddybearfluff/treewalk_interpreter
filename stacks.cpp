@@ -33,6 +33,25 @@ string RuntimeValue::description() const
     }
 }
 
+RuntimeValue FunctionObject::call(const vector<RuntimeValue>& arguments) const
+{
+    auto callEnv = std::make_shared<Environment>();
+    callEnv->parent = closure;
+    for (int i = 0; i < parameters.size(); ++i)
+    {
+        callEnv->variables[parameters[i]] = {arguments[i]};
+    }
+    try
+    {
+        body->evaluateNode(callEnv);
+        return {};
+    }
+    catch (const ReturnSignal& r)
+    {
+        return r.value;
+    }
+}
+
 bool RuntimeValue::isReducibleToBool() const
 {
     if (isArray()) return true;
