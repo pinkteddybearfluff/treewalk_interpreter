@@ -49,3 +49,27 @@ struct Environment
     VariableInfo& getReference(const string& identifier);
     void declare(string name, VariableInfo data);
 };
+
+VariableInfo& Environment::getReference(const string& identifier)
+{
+    const auto& iter = variables.find(identifier);
+    if (iter != variables.end())
+    {
+        return iter->second;
+    }
+    if (parent)
+    {
+        return parent->getReference(identifier);
+    }
+    throw UndefinedVariable();
+}
+
+void Environment::declare(string name, VariableInfo data)
+{
+    auto iter = variables.find(name);
+
+
+    if (iter == variables.end())
+        variables[name] = data;
+    else throw Redeclaration();
+}

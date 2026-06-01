@@ -8,6 +8,8 @@
 #include "ast.h"
 #include "lexer.h"
 #include "stacks.h"
+#include "version.h"
+#include "wayland-version.h"
 
 // The Laven Language Lavender
 
@@ -26,9 +28,18 @@ int main(int argc, char** argv)
     auto parseCompleteFlag = std::chrono::high_resolution_clock::now();
     auto evalCompleteFlag = std::chrono::high_resolution_clock::now();
     shared_ptr<Environment> env = std::make_shared<Environment>();
+    env->declare("__VERSION__", {string(LANGUAGE_VERSION), 0});
     env->parent = nullptr;
-    // string file = argv[1];
-    string file = "../test/functions.som";
+    if (argv[1])
+    {
+        std::string_view cmd = argv[1];
+        if (cmd == "--version" || cmd == "-v")
+        {
+            cout << "Laven" << LANGUAGE_VERSION << "\n";
+            return 0;
+        }
+    }
+    string file = "../stdlib/math.som";
     std::ifstream is(file);
     if (!is.is_open())
     {

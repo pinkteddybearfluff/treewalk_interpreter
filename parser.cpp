@@ -188,7 +188,7 @@ unique_ptr<StatementNode> parseDeclaration(TokenStream& ts)
     {
         if (match(TokenType::Assign, ts))
         {
-            unique_ptr<ExpressionNode> expr = parseEquality(ts);
+            unique_ptr<ExpressionNode> expr = parseLogicalOr(ts);
             if constexpr (DEBUG_PARSER) debugExit(parserName);
             return make_unique<DeclarationNode>(std::move(left), std::move(expr),
                                                 ts.getLineNo());
@@ -216,17 +216,57 @@ unique_ptr<ExpressionNode> parseAssignment(TokenStream& ts)
     string parserName = "parseAssignment";
     if constexpr (DEBUG_PARSER) debugEnter(parserName);
 
-    auto lhs = parseEquality(ts);
+    auto lhs = parseLogicalOr(ts);
     if (match(TokenType::Assign, ts))
     {
         if (lhs->isAssignmentTarget())
         {
-            auto rhs = parseEquality(ts);
+            auto rhs = parseAssignment(ts);
 
             if constexpr (DEBUG_PARSER) debugExit(parserName);
             return make_unique<AssignmentNode>(std::move(lhs), std::move(rhs), ts.getLineNo());
         }
         throw ParserError(std::format("cannot assign to {}", lhs->description()), ts.getLineNo());
+    }
+    if (match(TokenType::PlusEqual, ts))
+    {
+        if (lhs->isAssignmentTarget())
+        {
+            auto rhs = parseAssignment(ts);
+            if constexpr (DEBUG_PARSER) debugExit(parserName);
+            return make_unique<CompoundAssignmentNode>(Token{.type = TokenType::PlusEqual, .line = ts.getLineNo()},
+                                                       std::move(lhs), std::move(rhs), ts.getLineNo());
+        }
+    }
+    if (match(TokenType::MinusEqual, ts))
+    {
+        if (lhs->isAssignmentTarget())
+        {
+            auto rhs = parseAssignment(ts);
+            if constexpr (DEBUG_PARSER) debugExit(parserName);
+            return make_unique<CompoundAssignmentNode>(Token{.type = TokenType::MinusEqual, .line = ts.getLineNo()},
+                                                       std::move(lhs), std::move(rhs), ts.getLineNo());
+        }
+    }
+    if (match(TokenType::MultiplyEqual, ts))
+    {
+        if (lhs->isAssignmentTarget())
+        {
+            auto rhs = parseAssignment(ts);
+            if constexpr (DEBUG_PARSER) debugExit(parserName);
+            return make_unique<CompoundAssignmentNode>(Token{.type = TokenType::MultiplyEqual, .line = ts.getLineNo()},
+                                                       std::move(lhs), std::move(rhs), ts.getLineNo());
+        }
+    }
+    if (match(TokenType::DivideEqual, ts))
+    {
+        if (lhs->isAssignmentTarget())
+        {
+            auto rhs = parseAssignment(ts);
+            if constexpr (DEBUG_PARSER) debugExit(parserName);
+            return make_unique<CompoundAssignmentNode>(Token{.type = TokenType::DivideEqual, .line = ts.getLineNo()},
+                                                       std::move(lhs), std::move(rhs), ts.getLineNo());
+        }
     }
     if constexpr (DEBUG_PARSER) debugExit(parserName);
     return lhs;
@@ -381,13 +421,27 @@ unique_ptr<StatementNode> parseFunctionDeclaration(TokenStream& ts)
     Token t = consume(TokenType::Identifier, "expected identifier after fn", ts);
     consume(TokenType::OpenParen, "expected '(' after function name", ts);
     vector<string> parameters;
+    bool variadic{false};
+    string variadicParamName;
 
     if (!match(TokenType::CloseParen, ts))
     {
         while (true)
         {
-            Token ti = consume(TokenType::Identifier, "expected parameter", ts);
-            parameters.push_back(ti.name);
+            if (check(TokenType::Identifier, ts))
+            {
+                Token ti = consume(TokenType::Identifier, "expected parameter", ts);
+                parameters.push_back(ti.name);
+            }
+            else if (check(TokenType::Ellipsis, ts))
+            {
+                match(TokenType::Ellipsis, ts);
+                Token ta = consume(TokenType::Identifier, "expected 'args'", ts);
+                variadicParamName = ta.name;
+                consume(TokenType::CloseParen, "...args cannot be mixed with normal parameters", ts);
+                variadic = true;
+                break;
+            }
             if (match(TokenType::CloseParen, ts))
             {
                 break;
@@ -400,7 +454,38 @@ unique_ptr<StatementNode> parseFunctionDeclaration(TokenStream& ts)
 
     if constexpr (DEBUG_PARSER) debugExit(parserName);
     --functionLevel;
-    return make_unique<FunctionDeclarationNode>(t.name, parameters, std::move(body), funcDeclarationLine);
+    return make_unique<FunctionDeclarationNode>(t.name, parameters, std::move(body), variadic, variadicParamName,
+                                                funcDeclarationLine);
+}
+
+unique_ptr<ExpressionNode> parseLogicalOr(TokenStream& ts)
+{
+    string parserName = "parseLogicalOr";
+    if constexpr (DEBUG_PARSER) debugEnter(parserName);
+    auto lhs = parseLogicalAnd(ts);
+    while (match(TokenType::OrOr, ts))
+    {
+        auto rhs = parseLogicalAnd(ts);
+        lhs = make_unique<BinaryNode>(Token{.type = TokenType::OrOr, .line = ts.getLineNo()}, std::move(lhs),
+                                      std::move(rhs), ts.getLineNo());
+    }
+    if constexpr (DEBUG_PARSER) debugExit(parserName);
+    return lhs;
+}
+
+unique_ptr<ExpressionNode> parseLogicalAnd(TokenStream& ts)
+{
+    string parserName = "parseLogicalAnd";
+    if constexpr (DEBUG_PARSER) debugEnter(parserName);
+    auto lhs = parseEquality(ts);
+    while (match(TokenType::AndAnd, ts))
+    {
+        auto rhs = parseEquality(ts);
+        lhs = make_unique<BinaryNode>(Token{.type = TokenType::AndAnd, .line = ts.getLineNo()}, std::move(lhs),
+                                      std::move(rhs), ts.getLineNo());
+    }
+    if constexpr (DEBUG_PARSER) debugExit(parserName);
+    return lhs;
 }
 
 unique_ptr<ExpressionNode> parseEquality(TokenStream& ts)
@@ -467,7 +552,7 @@ unique_ptr<ExpressionNode> parseTerm(TokenStream& ts)
         Token t = ts.peek();
         if constexpr (DEBUG_PARSER) debugPeek(parserName, t);
 
-        if (t.type == TokenType::Plus || t.type == TokenType::Minus)
+        if (t.type == TokenType::Plus || t.type == TokenType::Minus || t.type == TokenType::Modulo)
         {
             t = ts.getNextToken();
             if constexpr (DEBUG_PARSER) debugConsume(parserName, t);
@@ -514,7 +599,7 @@ unique_ptr<ExpressionNode> parseUnary(TokenStream& ts)
     string parserName = "parseUnary";
     if constexpr (DEBUG_PARSER) debugEnter(parserName);
 
-    if (check(TokenType::Plus, ts) || check(TokenType::Minus, ts))
+    if (check(TokenType::Plus, ts) || check(TokenType::Minus, ts) || check(TokenType::Not, ts))
     {
         Token t = ts.getNextToken();
         unique_ptr<ExpressionNode> expr = parsePrimary(ts);

@@ -44,7 +44,10 @@ struct FunctionObject
     vector<string> parameters;
     const BlockNode* body;
     shared_ptr<Environment> closure;
+    bool variadic;
+    string variadicParamName;
     RuntimeValue call(const vector<RuntimeValue>& arguments) const;
+    RuntimeValue call(const vector<RuntimeValue>& arguments, const vector<RuntimeValue>& restArgs) const;
 };
 
 // Runtime value type is decided at run time.
@@ -134,13 +137,24 @@ public:
     [[nodiscard]] bool isReducibleToBool() const;
     [[nodiscard]] bool isTruthy() const;
     [[nodiscard]] double asNumber() const { return std::get<double>(data); };
+
+    [[nodiscard]] double& getNumberRef()
+    {
+        return std::get<double>(data);
+    };
     [[nodiscard]] const string& asString() const { return std::get<string>(data); };
 
     [[nodiscard]] std::monostate asNull() const { return std::get<std::monostate>(data); };
     string& getStringRef() { return std::get<string>(data); };
     [[nodiscard]] bool asBoolean() const { return std::get<bool>(data); };
+
+    [[nodiscard]] bool& getBoolRef()
+    {
+        return std::get<bool>(data);
+    };
     [[nodiscard]] shared_ptr<Array> asArrayPtr() const { return std::get<shared_ptr<Array>>(data); };
     [[nodiscard]] FunctionObject asFunctionObj() const { return std::get<FunctionObject>(data); };
+
 
     [[nodiscard]] string description() const;
     [[nodiscard]] Kind kind() const;

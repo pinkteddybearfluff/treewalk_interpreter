@@ -40,6 +40,8 @@ unique_ptr<StatementNode> parseDeclaration(TokenStream& ts);
 unique_ptr<StatementNode> parseExpressionStatement(TokenStream& ts);
 
 unique_ptr<ExpressionNode> parseAssignment(TokenStream& ts);
+unique_ptr<ExpressionNode> parseLogicalOr(TokenStream& ts);
+unique_ptr<ExpressionNode> parseLogicalAnd(TokenStream& ts);
 unique_ptr<ExpressionNode> parseEquality(TokenStream& ts);
 unique_ptr<ExpressionNode> parseComparison(TokenStream& ts);
 unique_ptr<ExpressionNode> parseTerm(TokenStream& ts);

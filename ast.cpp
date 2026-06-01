@@ -30,13 +30,16 @@ void StringNode::debugPrint(int indentLevel) const
 RuntimeValue UnaryNode::evaluateNode(shared_ptr<Environment> env) const
 {
     RuntimeValue value = child->evaluateNode(env);
+    if (op.type == TokenType::Not)
+    {
+        return !value.isTruthy();
+    }
     if (value.isNumber())
     {
         if (op.type == TokenType::Minus)
-        {
             return -value.asNumber();
-        }
-        return value;
+        if (op.type == TokenType::Plus)
+            return value;
     }
     throw std::runtime_error("invalid operand type for " + getSymbolForOp(op.type));
 }
@@ -189,6 +192,23 @@ void IndexNode::debugPrint(int indentLevel) const
 
 RuntimeValue BinaryNode::evaluateNode(shared_ptr<Environment> env) const
 {
+    if (op.type == TokenType::AndAnd)
+    {
+        RuntimeValue lval = left->evaluateNode(env);
+        if (!lval.isTruthy())
+            return false;
+        RuntimeValue rval = right->evaluateNode(env);
+
+        return rval.isTruthy();
+    }
+    if (op.type == TokenType::OrOr)
+    {
+        RuntimeValue lval = left->evaluateNode(env);
+        if (lval.isTruthy())
+            return true;
+        RuntimeValue rval = right->evaluateNode(env);
+        return rval.isTruthy();
+    }
     RuntimeValue lval = left->evaluateNode(env);
     RuntimeValue rval = right->evaluateNode(env);
 
@@ -206,16 +226,22 @@ RuntimeValue BinaryNode::evaluateNode(shared_ptr<Environment> env) const
                 return lvalue - rvalue;
             case TokenType::Multiply:
                 return lvalue * rvalue;
+            case TokenType::Modulo:
+                if (rvalue)
+                    return fmod(lvalue, rvalue);
+                throw RuntimeError("cannot divide by zero", {
+                                       .category = ErrorCategory::ZeroDivisionError,
+                                       .kind = ErrorKind::DivisionByZero,
+                                       .currentLine = line
+                                   });
             case TokenType::Divide:
-                {
-                    if (rvalue)
-                        return lvalue / rvalue;
-                    throw RuntimeError("cannot divide by zero", {
-                                           .category = ErrorCategory::ZeroDivisionError,
-                                           .kind = ErrorKind::DivisionByZero,
-                                           .currentLine = line
-                                       });
-                }
+                if (rvalue)
+                    return lvalue / rvalue;
+                throw RuntimeError("cannot divide by zero", {
+                                       .category = ErrorCategory::ZeroDivisionError,
+                                       .kind = ErrorKind::DivisionByZero,
+                                       .currentLine = line
+                                   });
             case TokenType::Greater:
                 return lvalue > rvalue;
             case TokenType::GreaterEqual:
@@ -397,6 +423,186 @@ void AssignmentNode::debugPrint(int indentLevel) const
     rvalue->debugPrint(indentLevel + 1);
 }
 
+RuntimeValue CompoundAssignmentNode::evaluateNode(shared_ptr<Environment> env) const
+{
+    RuntimeValue rhs = rvalue->evaluateNode(env);
+    if (auto* var = dynamic_cast<VariableNode*>(lvalue.get()))
+    {
+        auto& lhs = var->getReference(env);
+        switch (op.type)
+        {
+        case TokenType::PlusEqual:
+            if (lhs.isNumber() && rhs.isNumber())
+            {
+                return lhs.getNumberRef() += rhs.asNumber();;
+            }
+            if (lhs.isString() && rhs.isString())
+            {
+                return lhs.getStringRef() += rhs.asString();;
+            }
+            if (lhs.isBoolean() && rhs.isBoolean())
+            {
+                return lhs.getBoolRef() += rhs.asBoolean();
+            }
+            throw RuntimeError("unsupported operations", {
+                                   .category = ErrorCategory::TypeError, .kind = ErrorKind::UnsupportedOperation,
+                                   .identifier = "+", .primary = lhs.description(), .secondary = rhs.description(),
+                                   .currentLine = line
+
+                               });
+            break;
+        case TokenType::MinusEqual:
+            if (lhs.isNumber() && rhs.isNumber())
+            {
+                return lhs.getNumberRef() -= rhs.asNumber();;
+            }
+            if (lhs.isBoolean() && rhs.isBoolean())
+            {
+                return lhs.getBoolRef() -= rhs.asBoolean();
+            }
+            throw RuntimeError("unsupported operations", {
+                                   .category = ErrorCategory::TypeError, .kind = ErrorKind::UnsupportedOperation,
+                                   .identifier = "-", .primary = lhs.description(), .secondary = rhs.description(),
+                                   .currentLine = line
+
+                               });
+            break;
+        case TokenType::MultiplyEqual:
+            if (lhs.isNumber() && rhs.isNumber())
+            {
+                return lhs.getNumberRef() *= rhs.asNumber();;
+            }
+            if (lhs.isBoolean() && rhs.isBoolean())
+            {
+                return lhs.getBoolRef() *= rhs.asBoolean();
+            }
+            throw RuntimeError("unsupported operations", {
+                                   .category = ErrorCategory::TypeError, .kind = ErrorKind::UnsupportedOperation,
+                                   .identifier = "*", .primary = lhs.description(), .secondary = rhs.description(),
+                                   .currentLine = line
+                               });
+            break;
+        case TokenType::DivideEqual:
+            if (lhs.isNumber() && rhs.isNumber())
+            {
+                if (rhs.asNumber())
+                    return lhs.getNumberRef() /= rhs.asNumber();;
+                throw RuntimeError("division by zero", {
+                                       .category = ErrorCategory::ZeroDivisionError,
+                                       .kind = ErrorKind::DivisionByZero,
+                                       .currentLine = line
+                                   });
+            }
+            if (lhs.isBoolean() && rhs.isBoolean())
+            {
+                if (rhs.asBoolean())
+                    return lhs.getBoolRef() /= rhs.asBoolean();
+                throw RuntimeError("division by zero", {
+                                       .category = ErrorCategory::ZeroDivisionError,
+                                       .kind = ErrorKind::DivisionByZero,
+                                       .currentLine = line
+                                   });
+            }
+            throw RuntimeError("unsupported operations", {
+                                   .category = ErrorCategory::TypeError, .kind = ErrorKind::UnsupportedOperation,
+                                   .identifier = "/", .primary = lhs.description(), .secondary = rhs.description()
+                               });
+            break;
+        }
+    }
+    if (auto* indexElem = dynamic_cast<IndexNode*>(lvalue.get()))
+    {
+        auto& lhs = indexElem->getReference(env);
+        switch (op.type)
+        {
+        case TokenType::PlusEqual:
+            if (lhs.isNumber() && rhs.isNumber())
+            {
+                return lhs.getNumberRef() += rhs.asNumber();;
+            }
+            if (lhs.isString() && rhs.isString())
+            {
+                return lhs.getStringRef() += rhs.asString();;
+            }
+            if (lhs.isBoolean() && rhs.isBoolean())
+            {
+                return lhs.getBoolRef() += rhs.asBoolean();
+            }
+            throw RuntimeError("unsupported operations", {
+                                   .category = ErrorCategory::TypeError, .kind = ErrorKind::UnsupportedOperation,
+                                   .identifier = "+", .primary = lhs.description(), .secondary = rhs.description(),
+                                   .currentLine = line
+
+                               });
+            break;
+        case TokenType::MinusEqual:
+            if (lhs.isNumber() && rhs.isNumber())
+            {
+                return lhs.getNumberRef() -= rhs.asNumber();;
+            }
+            if (lhs.isBoolean() && rhs.isBoolean())
+            {
+                return lhs.getBoolRef() -= rhs.asBoolean();
+            }
+            throw RuntimeError("unsupported operations", {
+                                   .category = ErrorCategory::TypeError, .kind = ErrorKind::UnsupportedOperation,
+                                   .identifier = "-", .primary = lhs.description(), .secondary = rhs.description(),
+                                   .currentLine = line
+
+                               });
+            break;
+        case TokenType::MultiplyEqual:
+            if (lhs.isNumber() && rhs.isNumber())
+            {
+                return lhs.getNumberRef() *= rhs.asNumber();;
+            }
+            if (lhs.isBoolean() && rhs.isBoolean())
+            {
+                return lhs.getBoolRef() *= rhs.asBoolean();
+            }
+            throw RuntimeError("unsupported operations", {
+                                   .category = ErrorCategory::TypeError, .kind = ErrorKind::UnsupportedOperation,
+                                   .identifier = "*", .primary = lhs.description(), .secondary = rhs.description(),
+                                   .currentLine = line
+                               });
+            break;
+        case TokenType::DivideEqual:
+            if (lhs.isNumber() && rhs.isNumber())
+            {
+                if (rhs.asNumber())
+                    return lhs.getNumberRef() /= rhs.asNumber();;
+                throw RuntimeError("division by zero", {
+                                       .category = ErrorCategory::ZeroDivisionError,
+                                       .kind = ErrorKind::DivisionByZero,
+                                       .currentLine = line,
+                                   });
+            }
+            if (lhs.isBoolean() && rhs.isBoolean())
+            {
+                if (rhs.asBoolean())
+                    return lhs.getBoolRef() /= rhs.asBoolean();
+                throw RuntimeError("division by zero", {
+                                       .category = ErrorCategory::ZeroDivisionError,
+                                       .kind = ErrorKind::DivisionByZero,
+                                       .currentLine = line,
+                                   });
+            }
+            throw RuntimeError("unsupported operations", {
+                                   .category = ErrorCategory::TypeError, .kind = ErrorKind::UnsupportedOperation,
+                                   .identifier = "/", .primary = lhs.description(), .secondary = rhs.description()
+                               });
+            break;
+        }
+    }
+}
+
+void CompoundAssignmentNode::debugPrint(int indentLevel) const
+{
+    cout << "CompoundAssignment";
+    lvalue->debugPrint(indentLevel + 1);
+    rvalue->debugPrint(indentLevel + 1);
+}
+
 void DeclarationNode::evaluateNode(shared_ptr<Environment> env) const
 {
     RuntimeValue right = rvalue->evaluateNode(env);
@@ -557,9 +763,11 @@ void ContinueNode::debugPrint(int indentLevel) const
 void BlockNode::evaluateNode(shared_ptr<Environment> env) const
 {
     // ScopedEnvironment local(env);
+    auto currentEnv = std::make_shared<Environment>();
+    currentEnv->parent = env;
     for (auto& statement : statements)
     {
-        statement->evaluateNode(env);
+        statement->evaluateNode(currentEnv);
     }
 }
 
@@ -587,12 +795,32 @@ RuntimeValue FunctionCallNode::evaluateNode(shared_ptr<Environment> env) const
             {
                 auto function = obj.asFunctionObj();
                 vector<RuntimeValue> args;
-                if (arguments.size() == function.parameters.size())
+                if (!function.variadic)
                 {
-                    for (const auto& argument : arguments)
-                        args.push_back(argument->evaluateNode(env));
+                    if (arguments.size() == function.parameters.size())
+                    {
+                        for (const auto& argument : arguments)
+                            args.push_back(argument->evaluateNode(env));
 
-                    return function.call(args);
+                        return function.call(args);
+                    }
+                }
+                else
+                {
+                    if (arguments.size() <= function.parameters.size())
+                        validateArity(function.parameters.size() + 1, arguments.size(), f_name, line);
+                    else
+                    {
+                        vector<RuntimeValue> restArgs;
+                        for (int i = 0; i < arguments.size(); ++i)
+                        {
+                            if (i < function.parameters.size())
+                                args.push_back(arguments[i]->evaluateNode(env));
+                            else
+                                restArgs.push_back(arguments[i]->evaluateNode(env));
+                        }
+                        return function.call(args, restArgs);
+                    }
                 }
                 validateArity(function.parameters.size(), arguments.size(), f_name, line);
             }
@@ -625,19 +853,34 @@ RuntimeValue FunctionCallNode::evaluateNode(shared_ptr<Environment> env) const
                                     arguments[1]->evaluateNode(env).asNumber());
                 validateArity(2, arguments.size(), "min", line);
             }
-            if (f_name == "avg")
+            // if (f_name == "avg")
+            // {
+            //     if (!arguments.empty())
+            //     {
+            //         double avg = 0;
+            //         for (const auto& argument : arguments)
+            //             avg += argument->evaluateNode(env).asNumber();
+            //         avg = avg / arguments.size();
+            //         return avg;
+            //     }
+            //     validateArity(1, arguments.size(), "avg", line);
+            // }
+            if (f_name == "print")
             {
                 if (!arguments.empty())
                 {
-                    double avg = 0;
                     for (const auto& argument : arguments)
-                        avg += argument->evaluateNode(env).asNumber();
-                    avg = avg / arguments.size();
-                    return avg;
+                    {
+                        RuntimeValue arg = argument->evaluateNode(env);
+                        printRuntimeValue(arg);
+                        cout << " ";
+                    }
                 }
-                validateArity(1, arguments.size(), "avg", line);
+                else cout << "";
+                return {};
             }
-            if (f_name == "print")
+
+            if (f_name == "println")
             {
                 if (!arguments.empty())
                 {
@@ -681,6 +924,49 @@ RuntimeValue FunctionCallNode::evaluateNode(shared_ptr<Environment> env) const
                         throw std::runtime_error("invalid operand for push");
                     }
                 }
+            }
+            if (f_name == "read")
+            {
+                if (!arguments.empty())
+                {
+                    for (const auto& argument : arguments)
+                    {
+                        RuntimeValue arg = argument->evaluateNode(env);
+                        printRuntimeValue(arg);
+                        cout << " ";
+                    }
+                    cout << '\n';
+                }
+                else cout << "";
+                string input;
+                getline(std::cin, input, ' ');
+                return input;
+            }
+            if (f_name == "readln")
+            {
+                if (!arguments.empty())
+                {
+                    for (const auto& argument : arguments)
+                    {
+                        RuntimeValue arg = argument->evaluateNode(env);
+                        printRuntimeValue(arg);
+                        cout << " ";
+                    }
+                    cout << '\n';
+                }
+                else cout << "";
+                string input;
+                getline(std::cin, input);
+                return input;
+            }
+            if (f_name == "type")
+            {
+                if (arguments.size() == 1)
+                {
+                    const RuntimeValue& obj = arguments[0]->evaluateNode(env);
+                    return obj.description();
+                }
+                validateArity(1, arguments.size(), f_name, line);
             }
             throw RuntimeError("function is not defined", {
                                    .category = ErrorCategory::NameError, .kind = ErrorKind::FunctionUndefined,
@@ -776,18 +1062,21 @@ void validateArity(int expected_arguments, int given_arguments, string f_name, i
 
 void FunctionDeclarationNode::evaluateNode(shared_ptr<Environment> env) const
 {
-    auto* body_ptr = dynamic_cast<BlockNode*>(body.get());
-    env->declare(identifier, {FunctionObject{identifier, parameters, body_ptr, env}, line});
-    // auto iter = functions.find(identifier);
-    // if (iter == functions.end())
-    //     functions[identifier] = this;
-    // else
-    //     throw RuntimeError("redeclaration of function", {
-    //                            .category = ErrorCategory::RedeclarationError,
-    //                            .kind = ErrorKind::FunctionRedeclaration,
-    //                            .identifier = identifier,
-    //                            .currentLine = line
-    //                        });
+    auto iter = functions.find(identifier);
+    if (iter == functions.end())
+    {
+        auto* body_ptr = dynamic_cast<BlockNode*>(body.get());
+        env->declare(identifier, {
+                         FunctionObject{identifier, parameters, body_ptr, env, variadic, variadicParamName}, line
+                     });
+    }
+    else
+        throw RuntimeError("redeclaration of function", {
+                               .category = ErrorCategory::RedeclarationError,
+                               .kind = ErrorKind::FunctionRedeclaration,
+                               .identifier = identifier,
+                               .currentLine = line
+                           });
 }
 
 void FunctionDeclarationNode::debugPrint(int indentLevel) const
@@ -797,7 +1086,10 @@ void FunctionDeclarationNode::debugPrint(int indentLevel) const
     for (const auto& parameter : parameters)
     {
         cout << parameter;
+        cout << " ";
     }
+    if (variadic)
+        cout << "...args";
     cout << ")\n";
     cout << string(IndentSize * indentLevel, ' ');
     body->debugPrint(indentLevel + 1);

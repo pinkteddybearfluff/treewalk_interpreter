@@ -5,10 +5,10 @@
 #include <string>
 #include <format>
 #include <utility>
+#include <cmath>
 #include "stacks.h"
 
 #include "lexer.h"
-
 
 constexpr bool DEBUG_AST = false;
 
@@ -319,6 +319,29 @@ protected:
     int line;
 };
 
+class CompoundAssignmentNode : public ExpressionNode
+{
+public:
+    CompoundAssignmentNode(Token op, unique_ptr<ExpressionNode> left, unique_ptr<ExpressionNode> right, int lineNo) :
+        op{op}, lvalue{std::move(left)}, rvalue{std::move(right)}, line{lineNo}
+    {
+    };
+    RuntimeValue evaluateNode(shared_ptr<Environment> env) const override;
+    void debugPrint(int indentLevel) const override;
+
+    [[nodiscard]] bool isDeclarationTarget() const override { return false; };
+    [[nodiscard]] bool isAssignmentTarget() const override { return true; };
+    [[nodiscard]] string description() const override { return "literal"; };
+
+private:
+    Token op;
+    unique_ptr<ExpressionNode> lvalue;
+    unique_ptr<ExpressionNode> rvalue;
+
+protected:
+    int line;
+};
+
 
 class FunctionCallNode : public ExpressionNode
 {
@@ -506,8 +529,10 @@ void validateArity(int expected_arguments, int given_arguments, string f_name, i
 class FunctionDeclarationNode : public StatementNode
 {
 public:
-    FunctionDeclarationNode(string fname, vector<string> para, unique_ptr<StatementNode> b, int lineNo)
-        : identifier{fname}, parameters{std::move(para)}, body{std::move(b)}, line{lineNo}
+    FunctionDeclarationNode(string fname, vector<string> para, unique_ptr<StatementNode> b, bool variadic,
+                            string variadicParamName, int lineNo)
+        : identifier{fname}, parameters{std::move(para)}, body{std::move(b)}, variadic{variadic},
+          variadicParamName{variadicParamName}, line{lineNo}
 
     {
     };
@@ -515,11 +540,14 @@ public:
     void evaluateNode(shared_ptr<Environment> env) const override;
     int getParametersSize() const { return parameters.size(); };
     vector<string> getParameters() const { return parameters; };
+    bool isVariadic() const { return variadic; };
+    string variadicParamName;
 
 private:
     string identifier;
     vector<string> parameters;
     unique_ptr<StatementNode> body;
+    bool variadic{false};
     int line;
 };
 

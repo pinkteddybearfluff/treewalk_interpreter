@@ -57,6 +57,16 @@ enum class TokenType
     Null,
     Break,
     Continue,
+    PlusEqual,
+    MultiplyEqual,
+    MinusEqual,
+    DivideEqual,
+    AndAnd,
+    OrOr,
+    Not,
+    Modulo,
+    Ellipsis,
+    Dot,
 };
 
 struct Token

@@ -143,7 +143,7 @@ Token TokenStream::readFromStream()
             return Token{.type = TokenType::End, .line = lineNo};
         }
     }
-    if (isalpha(ch))
+    if (isalpha(ch) || ch == '_')
     {
         is.unget();
         string name = getVarName();
@@ -230,12 +230,32 @@ Token TokenStream::charToToken(int ch)
     switch (ch)
     {
     case '+':
+        if (is.peek() == '=')
+        {
+            is.get();
+            return Token{.type = TokenType::PlusEqual, .line = lineNo};
+        }
         return Token{.type = TokenType::Plus, .line = lineNo};
     case '-':
+        if (is.peek() == '=')
+        {
+            is.get();
+            return Token{.type = TokenType::MinusEqual, .line = lineNo};
+        }
         return Token{.type = TokenType::Minus, .line = lineNo};
     case '*':
+        if (is.peek() == '=')
+        {
+            is.get();
+            return Token{.type = TokenType::MultiplyEqual, .line = lineNo};
+        }
         return Token{.type = TokenType::Multiply, .line = lineNo};
     case '/':
+        if (is.peek() == '=')
+        {
+            is.get();
+            return Token{.type = TokenType::DivideEqual, .line = lineNo};
+        }
         return Token{.type = TokenType::Divide, .line = lineNo};
     case '(':
         return Token{.type = TokenType::OpenParen, .line = lineNo};
@@ -255,8 +275,7 @@ Token TokenStream::charToToken(int ch)
         return Token{.type = TokenType::Comma, .line = lineNo};
     case '=':
         {
-            int ch2 = is.peek();
-            if (static_cast<char>(ch2) == '=')
+            if (is.peek() == '=')
             {
                 is.get();
                 return Token{.type = TokenType::Equal, .line = lineNo};
@@ -285,14 +304,41 @@ Token TokenStream::charToToken(int ch)
             return Token{.type = TokenType::Greater, .line = lineNo};
         }
     case '!':
+
+        if (is.peek() == '=')
         {
-            int ch2 = is.peek();
-            if (static_cast<char>(ch2) == '=')
+            is.get();
+            return Token{.type = TokenType::NotEqual, .line = lineNo};
+        }
+        return Token{.type = TokenType::Not, .line = lineNo};
+    case '&':
+        if (is.peek() == '&')
+        {
+            is.get();
+            return Token{.type = TokenType::AndAnd, .line = lineNo};
+        }
+        throw LexerError("invalid syntax " + string(1, ch), getLineNo());
+    case '|':
+        if (is.peek() == '|')
+        {
+            is.get();
+            return Token{.type = TokenType::OrOr, .line = lineNo};
+        }
+        throw LexerError("invalid syntax " + string(1, ch), getLineNo());
+    case '%':
+        return Token{.type = TokenType::Modulo, .line = lineNo};
+    case '.':
+        if (is.peek() == '.')
+        {
+            is.get();
+            if (is.peek() == '.')
             {
                 is.get();
-                return Token{.type = TokenType::NotEqual, .line = lineNo};
+                return Token{.type = TokenType::Ellipsis, .line = lineNo};
             }
+            throw LexerError("invalid syntax '..'", getLineNo());
         }
+        return Token{.type = TokenType::Dot, .line = lineNo};
     default:
         cout << static_cast<char>(ch) << std::endl;
         throw LexerError("invalid syntax " + string(1, ch), getLineNo());
@@ -386,6 +432,28 @@ string getStringForType(TokenType type)
         return "CloseBracket";
     case TokenType::For:
         return "For";
+    case TokenType::Null:
+        return "Null";
+    case TokenType::PlusEqual:
+        return "PlusEqual";
+    case TokenType::MultiplyEqual:
+        return "MultiplyEqual";
+    case TokenType::MinusEqual:
+        return "MinusEqual";
+    case TokenType::DivideEqual:
+        return "DivideEqual";
+    case TokenType::AndAnd:
+        return "AndAnd";
+    case TokenType::OrOr:
+        return "OrOr";
+    case TokenType::Not:
+        return "Not";
+    case TokenType::Modulo:
+        return "Modulo";
+    case TokenType::Ellipsis:
+        return "Ellipsis";
+    case TokenType::Dot:
+        return "Dot";
     }
 }
 
@@ -416,5 +484,19 @@ string getSymbolForOp(TokenType op)
         return "/";
     case TokenType::Assign:
         return "=";
+    case TokenType::PlusEqual:
+        return "+=";
+    case TokenType::MinusEqual:
+        return "-=";
+    case TokenType::MultiplyEqual:
+        return "*=";
+    case TokenType::DivideEqual:
+        return "/=";
+    case TokenType::AndAnd:
+        return "&&";
+    case TokenType::OrOr:
+        return "||";
+    case TokenType::Modulo:
+        return "%";
     }
 }

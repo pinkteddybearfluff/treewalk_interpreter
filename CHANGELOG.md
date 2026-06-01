@@ -9,17 +9,35 @@ and this project uses a scheme similar to semantic versioning, however it does n
 
 ### Added
 
-- Add support for closures.
 - Add methods for arrays and string.
 - Better support/rendering of error messages for SyntaxError and SemanticError.
 - Add REPL for language.
 - Add support for including/importing files and modules.
 - Add support for switch case.
 - Support for logical operators
+- Support for compound assignment.
+- Support for modulo operator.
 
 ### Changed
 
 ### Removed
+
+## [0.15.0] - 2026-06-01
+
+### Added
+
+- Added support for compound assignment.
+- Added logical and, or and not.
+- Added support for modulo operator.
+- Added standard library math and array functions(currently not linked main programs).
+- Added check for interpreter version via --version and -v command and language version via \_\_VERSION__ constant.
+
+## [0.14.0] - 2026-06-01
+
+### Added
+
+- Added support for closures.
+- Added support for repeated calling syntax.
 
 ## [0.13.2] - 2026-06-01
 

@@ -1,0 +1,55 @@
+fn contains(arr, x){
+    for(let i = 0;i<size(arr); i += 1)
+        if ( arr[i] == x)
+            return true;
+    return false;
+}
+
+fn reverse(arr){
+    // let rev_arr = [];
+    let len = size(arr);
+    for(let i = 0; i < len/2; i+=1){
+        let tmp = arr[i];
+        arr[i] = arr[len-i-1];
+        arr[len-i-1] = tmp;
+    }
+    return arr;
+}
+
+fn concat(...args){
+    let arr = [];
+    let len = size(args);
+    for(let i = 0; i< len; i += 1)
+        if(type(args[i]) == "array"){
+            let ar_len = size(args[i]);
+            for(let j = 0;j< ar_len; j += 1)
+                push(arr,args[i][j]);
+        }else
+            push(arr,args[i]);
+    return arr;
+}
+
+fn sort(arr,cmp){
+    let len = size(arr);
+    if(len == 0)
+        return arr;
+    if(len == 1)
+        return arr;
+    if(len == 2){
+        if (cmp(arr[0],arr[1]))
+            return [arr[0],arr[1]];
+        return [arr[1],arr[0]];
+    }
+    let pivot = arr[0];
+    let left_sub = [];
+    let right_sub = [];
+    for(let i = 1; i < len; i += 1){
+        if(cmp(pivot,arr[i]))
+            push(right_sub, arr[i]);
+        else
+            push(left_sub, arr[i]);
+        
+    }
+    return concat(sort(left_sub,cmp),pivot,sort(right_sub,cmp));
+}
+

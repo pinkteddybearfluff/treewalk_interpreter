@@ -1,0 +1,26 @@
+fn max(a,b){
+    if (a>b) return a;
+    return b;
+}
+
+fn min(a,b){
+    if (a>b) return b;
+    return a;
+}
+
+
+
+fn clamp(x, low, high)
+{
+    return min(max(x, low), high);
+}
+
+fn avg(...args){
+    let sum;
+    let len = size(args);
+    for(let i =0; i< len; i+= 1)
+        sum += args[i];
+    return sum/len;
+}
+
+print(avg(4,5,6));
