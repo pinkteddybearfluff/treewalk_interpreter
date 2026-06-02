@@ -3,7 +3,7 @@ project(interpreter)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_executable(interpreter
+add_executable(laven
         main.cpp
         lexer.cpp
         lexer.h
@@ -13,4 +13,6 @@ add_executable(interpreter
         ast.h
         stacks.cpp
         stacks.h
-        version.h)
+        version.h
+        stdlib.cpp
+        stdlib.h)

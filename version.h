@@ -4,6 +4,6 @@
 #include <string_view>
 
 //Language version: MAJOR.MINOR.PATCH
-constexpr std::string_view LANGUAGE_VERSION = "0.14.0";
+constexpr std::string_view LANGUAGE_VERSION = "0.16.0";
 
 #endif //INTERPRETER_VERSION_H

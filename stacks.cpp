@@ -1,8 +1,14 @@
 #include "stacks.h"
+
+#include <algorithm>
+
 #include "ast.h"
 
 #include <stdexcept>
 #include <iostream>
+
+int callDepth{0};
+constexpr int maxCallDepth{1000};
 
 RuntimeValue::Kind RuntimeValue::kind() const
 {
@@ -12,6 +18,7 @@ RuntimeValue::Kind RuntimeValue::kind() const
     if (isArray()) return Kind::Array;
     if (isNull()) return Kind::Null;
     if (isFunctionObj()) return Kind::FunctionObject;
+    if (isNativeFunction()) return Kind::NativeFunction;
 }
 
 string RuntimeValue::description() const
@@ -30,6 +37,8 @@ string RuntimeValue::description() const
         return "null";
     case Kind::FunctionObject:
         return "function";
+    case Kind::NativeFunction:
+        return "nfunction";
     }
 }
 
@@ -37,6 +46,9 @@ RuntimeValue FunctionObject::call(const vector<RuntimeValue>& arguments) const
 {
     auto callEnv = std::make_shared<Environment>();
     callEnv->parent = closure;
+    auto callerGuard = CallDepthGuard(callDepth);
+    if (callDepth >= maxCallDepth)
+        throw MaxRecursion();
     for (int i = 0; i < parameters.size(); ++i)
     {
         callEnv->variables[parameters[i]] = {arguments[i]};
@@ -52,10 +64,24 @@ RuntimeValue FunctionObject::call(const vector<RuntimeValue>& arguments) const
     }
 }
 
+RuntimeValue NativeFunction::call(const vector<RuntimeValue>& arguments) const
+{
+    return fn(arguments);
+}
+
 RuntimeValue FunctionObject::call(const vector<RuntimeValue>& arguments, const vector<RuntimeValue>& restArgs) const
 {
     auto callEnv = std::make_shared<Environment>();
     callEnv->parent = closure;
+    auto callerGuard = CallDepthGuard(callDepth);
+    if (callDepth >= maxCallDepth)
+        throw RuntimeError("maximum recursion depth reached", {
+                               .category = ErrorCategory::RecursionError,
+                               .kind = ErrorKind::MaxRecursionLimit,
+                               .identifier = f_name,
+                               .currentLine = 0,
+                           });
+
     for (int i = 0; i < parameters.size(); ++i)
     {
         callEnv->variables[parameters[i]] = {arguments[i]};
@@ -105,6 +131,8 @@ bool RuntimeValue::isTruthy() const
         if (asBoolean()) return true;
         return false;
     }
+    if (isNativeFunction()) return true;
+    if (isFunctionObj()) return true;
     return false;
 }
 

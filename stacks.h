@@ -1,6 +1,7 @@
 #ifndef INTERPRETER_STACKS_H
 #define INTERPRETER_STACKS_H
 
+#include <functional>
 #include <string>
 #include <vector>
 #include <map>
@@ -50,6 +51,18 @@ struct FunctionObject
     RuntimeValue call(const vector<RuntimeValue>& arguments, const vector<RuntimeValue>& restArgs) const;
 };
 
+class MaxRecursion
+{
+};
+
+struct NativeFunction
+{
+    string f_name;
+    std::function<RuntimeValue(const vector<RuntimeValue>& args)> fn;
+
+    RuntimeValue call(const vector<RuntimeValue>& arguments) const;
+};
+
 // Runtime value type is decided at run time.
 // Allowing for dynamically type language like usage.
 class RuntimeValue
@@ -62,17 +75,22 @@ public:
         Boolean,
         Array,
         Null,
-        FunctionObject
+        FunctionObject,
+        NativeFunction,
     };
 
     using Array = vector<RuntimeValue>;
-    using Type = std::variant<double, bool, string, std::monostate, shared_ptr<Array>, FunctionObject>;
+    using Type = std::variant<double, bool, string, std::monostate, shared_ptr<Array>, FunctionObject, NativeFunction>;
 
     RuntimeValue(Type d) : data{d}
     {
     };
 
     RuntimeValue(FunctionObject f) : data{f}
+    {
+    };
+
+    RuntimeValue(NativeFunction nf) : data{nf}
     {
     };
 
@@ -134,6 +152,11 @@ public:
         return std::holds_alternative<FunctionObject>(data);
     }
 
+    [[nodiscard]] bool isNativeFunction() const
+    {
+        return std::holds_alternative<NativeFunction>(data);
+    }
+
     [[nodiscard]] bool isReducibleToBool() const;
     [[nodiscard]] bool isTruthy() const;
     [[nodiscard]] double asNumber() const { return std::get<double>(data); };
@@ -142,19 +165,20 @@ public:
     {
         return std::get<double>(data);
     };
-    [[nodiscard]] const string& asString() const { return std::get<string>(data); };
+    [[nodiscard]] const string& asString() const { return std::get<string>(data); }
 
-    [[nodiscard]] std::monostate asNull() const { return std::get<std::monostate>(data); };
-    string& getStringRef() { return std::get<string>(data); };
-    [[nodiscard]] bool asBoolean() const { return std::get<bool>(data); };
+    [[nodiscard]] std::monostate asNull() const { return std::get<std::monostate>(data); }
+    string& getStringRef() { return std::get<string>(data); }
+    [[nodiscard]] bool asBoolean() const { return std::get<bool>(data); }
 
     [[nodiscard]] bool& getBoolRef()
     {
         return std::get<bool>(data);
     };
-    [[nodiscard]] shared_ptr<Array> asArrayPtr() const { return std::get<shared_ptr<Array>>(data); };
-    [[nodiscard]] FunctionObject asFunctionObj() const { return std::get<FunctionObject>(data); };
-
+    [[nodiscard]] shared_ptr<Array> asArrayPtr() const { return std::get<shared_ptr<Array>>(data); }
+    [[nodiscard]] shared_ptr<Array>& getArrayPtrRef() { return std::get<shared_ptr<Array>>(data); }
+    [[nodiscard]] FunctionObject asFunctionObj() const { return std::get<FunctionObject>(data); }
+    [[nodiscard]] NativeFunction asNativeFunction() const { return std::get<NativeFunction>(data); }
 
     [[nodiscard]] string description() const;
     [[nodiscard]] Kind kind() const;
@@ -180,8 +204,26 @@ struct Environment
 {
     std::map<string, VariableInfo> variables;
     shared_ptr<Environment> parent;
+    int callDepthLevel{0};
     VariableInfo& getReference(const string& identifier);
     void declare(string name, VariableInfo data);
+};
+
+class CallDepthGuard
+{
+public:
+    CallDepthGuard(int& callDepth) : depth{callDepth}
+    {
+        ++depth;
+    }
+
+    ~CallDepthGuard()
+    {
+        --depth;
+    }
+
+private:
+    int& depth;
 };
 
 

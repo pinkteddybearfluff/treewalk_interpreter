@@ -10,7 +10,7 @@
 
 #include "lexer.h"
 
-constexpr bool DEBUG_AST = false;
+constexpr bool DEBUG_AST = true;
 
 using std::unique_ptr;
 using std::make_unique;
@@ -19,10 +19,15 @@ using std::string;
 class FunctionDeclarationNode;
 using FunctionTable = std::map<string, const FunctionDeclarationNode*>;
 
+struct EvalResult
+{
+    bool hasValue;
+    RuntimeValue value;
+};
 
 enum class ErrorCategory
 {
-    NameError, ZeroDivisionError, TypeError, RedeclarationError, IndexError, ArityError, ValueError
+    NameError, ZeroDivisionError, TypeError, RedeclarationError, IndexError, ArityError, ValueError, RecursionError
 };
 
 
@@ -52,6 +57,9 @@ enum class ErrorKind
     //RedeclarationError
     VariableRedeclaration,
     FunctionRedeclaration,
+
+    //RecursionError
+    MaxRecursionLimit
 };
 
 string getErrorCategoryString(ErrorCategory category);
@@ -91,7 +99,7 @@ public:
 class StatementNode
 {
 public:
-    virtual void evaluateNode(shared_ptr<Environment> env) const =0;
+    virtual EvalResult evaluateNode(shared_ptr<Environment> env) const =0;
     virtual void debugPrint(int indentLevel) const = 0;
     virtual ~StatementNode() = default;
 };
@@ -100,7 +108,7 @@ public:
 class ExpressionNode
 {
 public:
-    virtual RuntimeValue evaluateNode(shared_ptr<Environment> env) const =0;
+    virtual EvalResult evaluateNode(shared_ptr<Environment> env) const =0;
     virtual void debugPrint(int indentLevel) const =0;
     virtual ~ExpressionNode() = default;
     [[nodiscard]] virtual bool isAssignmentTarget() const { return false; };
@@ -115,7 +123,7 @@ protected:
 class ProgramNode
 {
 public:
-    void evaluateNode(shared_ptr<Environment> env);
+    EvalResult evaluateNode(shared_ptr<Environment> env);
     void debugPrint(int indentLevel);
 
     ProgramNode(vector<unique_ptr<StatementNode>> stmts) : statements{std::move(stmts)}
@@ -132,7 +140,7 @@ public:
     VariableNode(std::string name, int line) : identifierName{name}, line{line}
     {
     };
-    RuntimeValue evaluateNode(shared_ptr<Environment> env) const override;
+    EvalResult evaluateNode(shared_ptr<Environment> env) const override;
     [[nodiscard]] const string& getIdentifierName() const { return identifierName; };
     RuntimeValue& getReference(shared_ptr<Environment> env);
     // RuntimeValue& getFuncReference(FunctionTable& function_table);
@@ -154,7 +162,7 @@ public:
     NumberNode(double v, int lineNo) : value{v}, line{lineNo}
     {
     };
-    RuntimeValue evaluateNode(shared_ptr<Environment> env) const override;
+    EvalResult evaluateNode(shared_ptr<Environment> env) const override;
     void debugPrint(int indentLevel) const override;
     [[nodiscard]] bool isAssignmentTarget() const override { return false; };
     [[nodiscard]] bool isDeclarationTarget() const override { return false; };
@@ -174,7 +182,7 @@ public:
     {
     };
     void debugPrint(int indentLevel) const override;
-    RuntimeValue evaluateNode(shared_ptr<Environment> env) const override;
+    EvalResult evaluateNode(shared_ptr<Environment> env) const override;
     [[nodiscard]] bool isDeclarationTarget() const override { return false; };
     [[nodiscard]] bool isAssignmentTarget() const override { return false; };
     [[nodiscard]] string description() const override { return "literal"; };
@@ -193,7 +201,7 @@ public:
     {
     };
     void debugPrint(int indentLevel) const override;
-    RuntimeValue evaluateNode(shared_ptr<Environment> env) const override;
+    EvalResult evaluateNode(shared_ptr<Environment> env) const override;
     [[nodiscard]] bool isDeclarationTarget() const override { return false; };
     [[nodiscard]] bool isAssignmentTarget() const override { return false; };
     [[nodiscard]] string description() const override { return "literal"; };
@@ -213,7 +221,7 @@ public:
     {
     };
     void debugPrint(int indentLevel) const override;
-    RuntimeValue evaluateNode(shared_ptr<Environment> env) const override;
+    EvalResult evaluateNode(shared_ptr<Environment> env) const override;
     [[nodiscard]] bool isDeclarationTarget() const override { return false; };
     [[nodiscard]] bool isAssignmentTarget() const override { return false; };
     [[nodiscard]] string description() const override { return "literal"; };
@@ -237,7 +245,7 @@ public:
     {
     };
     void debugPrint(int indentLevel) const override;
-    RuntimeValue evaluateNode(shared_ptr<Environment> env) const override;
+    EvalResult evaluateNode(shared_ptr<Environment> env) const override;
     [[nodiscard]] bool isDeclarationTarget() const override { return false; };
     [[nodiscard]] bool isAssignmentTarget() const override { return false; };
     [[nodiscard]] string description() const override { return "literal"; };
@@ -258,9 +266,9 @@ public:
     {
     };
     void debugPrint(int indentLevel) const override;
-    RuntimeValue evaluateNode(shared_ptr<Environment> env) const override;
+    EvalResult evaluateNode(shared_ptr<Environment> env) const override;
     RuntimeValue& getReference(shared_ptr<Environment> env);
-    RuntimeValue getIndex(shared_ptr<Environment> env) const { return indexExp->evaluateNode(env); };
+    // RuntimeValue getIndex(shared_ptr<Environment> env) const { return indexExp->evaluateNode(env).value; };
     [[nodiscard]] bool isDeclarationTarget() const override { return false; };
     [[nodiscard]] bool isAssignmentTarget() const override { return true; };
     [[nodiscard]] string description() const override { return "array subscript"; };
@@ -281,7 +289,7 @@ public:
         : op{biOp}, left{std::move(leftNode)}, right{std::move(rightNode)}, line{lineNo}
     {
     };
-    RuntimeValue evaluateNode(shared_ptr<Environment> env) const override;
+    EvalResult evaluateNode(shared_ptr<Environment> env) const override;
     void debugPrint(int indentLevel) const override;
     [[nodiscard]] bool isDeclarationTarget() const override { return false; };
     [[nodiscard]] bool isAssignmentTarget() const override { return false; };
@@ -304,7 +312,7 @@ public:
         lvalue{std::move(left)}, rvalue{std::move(right)}, line{lineNo}
     {
     };
-    RuntimeValue evaluateNode(shared_ptr<Environment> env) const override;
+    EvalResult evaluateNode(shared_ptr<Environment> env) const override;
     void debugPrint(int indentLevel) const override;
 
     [[nodiscard]] bool isDeclarationTarget() const override { return false; };
@@ -326,7 +334,7 @@ public:
         op{op}, lvalue{std::move(left)}, rvalue{std::move(right)}, line{lineNo}
     {
     };
-    RuntimeValue evaluateNode(shared_ptr<Environment> env) const override;
+    EvalResult evaluateNode(shared_ptr<Environment> env) const override;
     void debugPrint(int indentLevel) const override;
 
     [[nodiscard]] bool isDeclarationTarget() const override { return false; };
@@ -355,7 +363,7 @@ public:
         }, arguments{std::move(args)}, line{lineNo}
     {
     };
-    RuntimeValue evaluateNode(shared_ptr<Environment> env) const override;
+    EvalResult evaluateNode(shared_ptr<Environment> env) const override;
     // vector<unique_ptr<ExpressionNode>>& getReference(EnvironmentStack& scopes) const;
     void debugPrint(int indentLevel) const override;
 
@@ -377,7 +385,7 @@ class ExpressionStatementNode : public StatementNode
 {
 public:
     void debugPrint(int indentLevel) const override;
-    void evaluateNode(shared_ptr<Environment> env) const override;
+    EvalResult evaluateNode(shared_ptr<Environment> env) const override;
 
     ExpressionStatementNode(unique_ptr<ExpressionNode> expression) : expressionStmt{std::move(expression)}
     {
@@ -401,7 +409,7 @@ public:
                                                                    line{lineNo}
     {
     };
-    void evaluateNode(shared_ptr<Environment> env) const override;
+    EvalResult evaluateNode(shared_ptr<Environment> env) const override;
     void debugPrint(int indentLevel) const override;
 
 protected:
@@ -426,7 +434,7 @@ public:
         : condition{std::move(c)}, thenStatement{std::move(thenBranch)}, elseStatement{std::move(elseBranch)}
     {
     };
-    void evaluateNode(shared_ptr<Environment> env) const override;
+    EvalResult evaluateNode(shared_ptr<Environment> env) const override;
     void debugPrint(int indentLevel) const override;
 
 private:
@@ -442,7 +450,7 @@ public:
         statement{std::move(whileBranch)}
     {
     };
-    void evaluateNode(shared_ptr<Environment> env) const override;
+    EvalResult evaluateNode(shared_ptr<Environment> env) const override;
     void debugPrint(int indentLevel) const override;
 
 private:
@@ -458,7 +466,7 @@ public:
         initializer{std::move(init)}, condition{std::move(cond)}, expr{std::move(expr)}, statement{std::move(stmt)}
     {
     };
-    void evaluateNode(shared_ptr<Environment> env) const override;
+    EvalResult evaluateNode(shared_ptr<Environment> env) const override;
     void debugPrint(int indentLevel) const override;
 
 private:
@@ -475,7 +483,7 @@ public:
     {
     }
 
-    void evaluateNode(shared_ptr<Environment> env) const override;
+    EvalResult evaluateNode(shared_ptr<Environment> env) const override;
     void debugPrint(int indentLevel) const override;
 };
 
@@ -489,7 +497,7 @@ public:
     ContinueNode()
     {
     };
-    void evaluateNode(shared_ptr<Environment> env) const override;
+    EvalResult evaluateNode(shared_ptr<Environment> env) const override;
     void debugPrint(int indentLevel) const override;
 };
 
@@ -504,7 +512,7 @@ public:
     {
     };
     void debugPrint(int indentLevel) const override;
-    void evaluateNode(shared_ptr<Environment> env) const override;
+    EvalResult evaluateNode(shared_ptr<Environment> env) const override;
 
 private:
     vector<unique_ptr<StatementNode>> statements;
@@ -516,7 +524,7 @@ public:
     UnaryNode(Token unOp, unique_ptr<ExpressionNode> n_node) : op{unOp}, child{std::move(n_node)}
     {
     };
-    RuntimeValue evaluateNode(shared_ptr<Environment> env) const override;
+    EvalResult evaluateNode(shared_ptr<Environment> env) const override;
     void debugPrint(int indentLevel) const override;
 
 private:
@@ -537,7 +545,7 @@ public:
     {
     };
     void debugPrint(int indentLevel) const override;
-    void evaluateNode(shared_ptr<Environment> env) const override;
+    EvalResult evaluateNode(shared_ptr<Environment> env) const override;
     int getParametersSize() const { return parameters.size(); };
     vector<string> getParameters() const { return parameters; };
     bool isVariadic() const { return variadic; };
@@ -559,7 +567,7 @@ public:
     {
     };
     void debugPrint(int indentLevel) const override;
-    void evaluateNode(shared_ptr<Environment> env) const override;
+    EvalResult evaluateNode(shared_ptr<Environment> env) const override;
 
 private:
     unique_ptr<ExpressionNode> returnStatement;
@@ -579,7 +587,8 @@ class EmptyNode : public StatementNode
 {
 public:
     void debugPrint(int indentLevel) const override;
-    void evaluateNode(shared_ptr<Environment> env) const override;
+    EvalResult evaluateNode(shared_ptr<Environment> env) const override;
 };
+
 
 #endif //INTERPRETER_AST_H

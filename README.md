@@ -15,7 +15,7 @@ Current version works on tree-walk interpreter, but later versions will be inter
 cmake -B build
 cmake --build build
 cd ./build
-./interpreter "path_to_file"
+./laven "path_to_file"
 ```
 
 Check Version via interpreter:

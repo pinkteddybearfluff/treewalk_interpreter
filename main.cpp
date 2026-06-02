@@ -9,17 +9,18 @@
 #include "lexer.h"
 #include "stacks.h"
 #include "version.h"
-#include "wayland-version.h"
+#include "stdlib.h"
 
 // The Laven Language Lavender
 
 //TODO: 1) add better error handling with ParserError LexerError Runtime Evaluation Error
-//Todo: 2)  virtual bool isAssignmentTarget() const;
-//          virtual bool isDeclarationTarget() const;
-//          virtual std::string description() const;
-//Todo: 3) automate testing with python
-//TODO: 3) add syntax highlighting
-//TODO: 4) add +=, -=, *= /=
+//Todo: 2) add centralized binary operations handled by RuntimeValue.
+//Todo: 3) Improve functionCallNode;
+//Todo: 4) Implement Call abstractions
+//Todo: 5) Have Lvalue for VariableNode and IndexNode
+//Todo: 6) Integrate stdlib to program
+//Todo: 7) automate testing with python
+//TODO: 8) add syntax highlighting
 
 
 int main(int argc, char** argv)
@@ -27,9 +28,18 @@ int main(int argc, char** argv)
     auto start = std::chrono::high_resolution_clock::now();
     auto parseCompleteFlag = std::chrono::high_resolution_clock::now();
     auto evalCompleteFlag = std::chrono::high_resolution_clock::now();
+
     shared_ptr<Environment> env = std::make_shared<Environment>();
     env->declare("__VERSION__", {string(LANGUAGE_VERSION), 0});
     env->parent = nullptr;
+    string file = "../stdlib/string.som";
+    registerStdLib(*env);
+    vector<unique_ptr<ProgramNode>> loadedLibraries;
+    loadedLibraries.push_back(loadStdlib("math.som", env));
+    loadedLibraries.push_back(loadStdlib("array.som", env));
+
+    bool REPL = true;
+
     if (argv[1])
     {
         std::string_view cmd = argv[1];
@@ -38,52 +48,67 @@ int main(int argc, char** argv)
             cout << "Laven" << LANGUAGE_VERSION << "\n";
             return 0;
         }
+        file = argv[1];
     }
-    string file = "../stdlib/math.som";
     std::ifstream is(file);
     if (!is.is_open())
     {
         throw std::runtime_error("Failed to open file");
     }
 
-    TokenStream ts{is};
     try
     {
         int result{0};
         vector<unique_ptr<StatementNode>> nodes;
-
-        while (!check(TokenType::End, ts))
+        if (!REPL)
         {
-            nodes.push_back(parseStatement(ts));
+            TokenStream ts{is};
+            while (!check(TokenType::End, ts))
+            {
+                nodes.push_back(parseStatement(ts));
+            }
+
+            parseCompleteFlag = std::chrono::high_resolution_clock::now();
+            cout << std::format("<--------Parsing completed-------------> [Time:{}]",
+                                std::chrono::duration<double>(parseCompleteFlag - start).count()) << '\n';
+            unique_ptr<ProgramNode> program = make_unique<ProgramNode>(std::move(nodes));
+            program->evaluateNode(env);
+
+            evalCompleteFlag = std::chrono::high_resolution_clock::now();
+            cout << std::format("<----------Evaluation complete---------> [Time:{}]",
+                                std::chrono::duration<double>(evalCompleteFlag - start).count()) << '\n';
+            if constexpr (DEBUG_AST)
+                program->debugPrint(0);
+
+
+            // if constexpr (DEBUG_ENV);
+            // env.debugEnvPrint();
+            auto end = std::chrono::high_resolution_clock::now();
+
+            std::cout
+                << std::format("[Total time taken: {}]", std::chrono::duration<double>(end - start).count()) << '\n';
+
+            std::cout
+                << std::format("[Time taken for parsing: {}]",
+                               std::chrono::duration<double>(parseCompleteFlag - start).count()) << '\n';
+            std::cout
+                << std::format("Time taken for evaluation: {}]",
+                               std::chrono::duration<double>(evalCompleteFlag - parseCompleteFlag).count()) << '\n';
         }
-
-        parseCompleteFlag = std::chrono::high_resolution_clock::now();
-        cout << std::format("<--------Parsing completed-------------> [Time:{}]",
-                            std::chrono::duration<double>(parseCompleteFlag - start).count()) << '\n';
-        unique_ptr<ProgramNode> program = make_unique<ProgramNode>(std::move(nodes));
-        program->evaluateNode(env);
-
-        evalCompleteFlag = std::chrono::high_resolution_clock::now();
-        cout << std::format("<----------Evaluation complete---------> [Time:{}]",
-                            std::chrono::duration<double>(evalCompleteFlag - start).count()) << '\n';
-        if constexpr (DEBUG_AST)
-            program->debugPrint(0);
-
-
-        // if constexpr (DEBUG_ENV);
-        // env.debugEnvPrint();
-        auto end = std::chrono::high_resolution_clock::now();
-
-        std::cout
-            << std::format("[Total time taken: {}]", std::chrono::duration<double>(end - start).count()) << '\n';
-
-        std::cout
-            << std::format("[Time taken for parsing: {}]",
-                           std::chrono::duration<double>(parseCompleteFlag - start).count()) << '\n';
-        std::cout
-            << std::format("Time taken for evaluation: {}]",
-                           std::chrono::duration<double>(evalCompleteFlag - parseCompleteFlag).count()) << '\n';
-
+        else
+        {
+            TokenStream ts{std::cin};
+            while (true)
+            {
+                cout << color::magenta << ">>> " << color::reset;
+                nodes.push_back(parseStatement(ts));
+                if (auto [hasValue, value] = nodes.back()->evaluateNode(env); hasValue)
+                {
+                    printRuntimeValue(value);
+                    cout << "\n";
+                }
+            }
+        }
         return 0;
     }
     catch (const LexerError& le)
@@ -166,6 +191,9 @@ int main(int argc, char** argv)
         case ErrorKind::FunctionRedeclaration:
             std::cerr << "redefinition of '" << color::boldGreen << re.diagnostic.identifier << color::reset << "()'\n";
             break;
+        case ErrorKind::MaxRecursionLimit:
+            std::cerr << "maximum recursion limit reached\n";
+            break;
         }
 
         return 3;
@@ -173,10 +201,9 @@ int main(int argc, char** argv)
     catch (const std::exception& e)
     {
         std::cerr << "File " << color::magenta << "\"" << file << "\"" << color::reset << ", line " << color::boldBlue
-            << ts
-            .getLineNo() <<
+            << 0 <<
             color::reset << '\n';
-        std::cerr << "Line " << ts.getLineNo() << " error: " << e.what() << "\n";
+        std::cerr << "Line " << 0 << " error: " << e.what() << "\n";
 
         if constexpr (DEBUG_ENV);
         // env.debugEnvPrint();

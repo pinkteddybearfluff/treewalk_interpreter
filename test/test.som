@@ -1,11 +1,1 @@
-fn outer(){
-    let x = 10;
-    fn inner(){
-        print(x);
-    }
-    x = 20;
-    return inner;
-}
-
-let f = outer();
-f();
+println(concat([3,4,5],6,[7,8,9]));

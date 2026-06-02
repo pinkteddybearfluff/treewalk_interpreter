@@ -7,9 +7,9 @@ using std::cout;
 constexpr int IndentSize = 2;
 FunctionTable functions;
 
-RuntimeValue NumberNode::evaluateNode(shared_ptr<Environment> env) const
+EvalResult NumberNode::evaluateNode(shared_ptr<Environment> env) const
 {
-    return value;
+    return {.hasValue = true, .value = value};
 }
 
 void NumberNode::debugPrint(int indentLevel) const
@@ -17,9 +17,9 @@ void NumberNode::debugPrint(int indentLevel) const
     cout << "Number(" << value << ")\n";
 }
 
-RuntimeValue StringNode::evaluateNode(shared_ptr<Environment> env) const
+EvalResult StringNode::evaluateNode(shared_ptr<Environment> env) const
 {
-    return value;
+    return {true, value};
 }
 
 void StringNode::debugPrint(int indentLevel) const
@@ -27,19 +27,19 @@ void StringNode::debugPrint(int indentLevel) const
     cout << "String(" << value << ")\n";
 }
 
-RuntimeValue UnaryNode::evaluateNode(shared_ptr<Environment> env) const
+EvalResult UnaryNode::evaluateNode(shared_ptr<Environment> env) const
 {
-    RuntimeValue value = child->evaluateNode(env);
+    RuntimeValue value = child->evaluateNode(env).value;
     if (op.type == TokenType::Not)
     {
-        return !value.isTruthy();
+        return {true, !value.isTruthy()};
     }
     if (value.isNumber())
     {
         if (op.type == TokenType::Minus)
-            return -value.asNumber();
+            return {true, -value.asNumber()};
         if (op.type == TokenType::Plus)
-            return value;
+            return {true, value};
     }
     throw std::runtime_error("invalid operand type for " + getSymbolForOp(op.type));
 }
@@ -56,14 +56,14 @@ void BooleanNode::debugPrint(int indentLevel) const
     cout << "Boolean(" << ((value == true) ? "true" : "false") << ")\n";
 }
 
-RuntimeValue BooleanNode::evaluateNode(shared_ptr<Environment> env) const
+EvalResult BooleanNode::evaluateNode(shared_ptr<Environment> env) const
 {
-    return value;
+    return {true, value};
 }
 
-RuntimeValue NullNode::evaluateNode(shared_ptr<Environment> env) const
+EvalResult NullNode::evaluateNode(shared_ptr<Environment> env) const
 {
-    return {};
+    return {true, {}};
 }
 
 void NullNode::debugPrint(int indentLevel) const
@@ -72,15 +72,15 @@ void NullNode::debugPrint(int indentLevel) const
 }
 
 
-RuntimeValue ArrayNode::evaluateNode(shared_ptr<Environment> env) const
+EvalResult ArrayNode::evaluateNode(shared_ptr<Environment> env) const
 {
     shared_ptr<vector<RuntimeValue>> arrayPtr = std::make_shared<vector<RuntimeValue>>();
 
     for (int i = 0; i < value.size(); ++i)
     {
-        arrayPtr->push_back(value[i]->evaluateNode(env));
+        arrayPtr->push_back(value[i]->evaluateNode(env).value);
     }
-    return arrayPtr;
+    return {true, arrayPtr};
 }
 
 void ArrayNode::debugPrint(int indentLevel) const
@@ -94,17 +94,17 @@ void ArrayNode::debugPrint(int indentLevel) const
     cout << string(indentLevel * IndentSize, ' ') << "]\n";
 }
 
-RuntimeValue IndexNode::evaluateNode(shared_ptr<Environment> env) const
+EvalResult IndexNode::evaluateNode(shared_ptr<Environment> env) const
 {
-    const RuntimeValue& object = operand->evaluateNode(env);
-    const RuntimeValue indexV = indexExp->evaluateNode(env);
+    const RuntimeValue& object = operand->evaluateNode(env).value;
+    const RuntimeValue indexV = indexExp->evaluateNode(env).value;
     if (indexV.isNumber())
     {
         const int index = static_cast<int>(indexV.asNumber());
         if (object.isArray())
         {
             if (index < object.asArrayPtr()->size())
-                return object.asArrayPtr()->at(index);
+                return {true, object.asArrayPtr()->at(index)};
             throw RuntimeError("array index out of range", {
                                    .category = ErrorCategory::IndexError,
                                    .kind = ErrorKind::IndexOutOfBounds,
@@ -115,7 +115,7 @@ RuntimeValue IndexNode::evaluateNode(shared_ptr<Environment> env) const
         if (object.isString())
         {
             if (index < object.asString().size())
-                return object.asString().at(index);
+                return {true, object.asString().at(index)};
             throw RuntimeError("array index out of range", {
                                    .category = ErrorCategory::IndexError,
                                    .kind = ErrorKind::IndexOutOfBounds,
@@ -139,7 +139,7 @@ RuntimeValue IndexNode::evaluateNode(shared_ptr<Environment> env) const
 
 RuntimeValue& IndexNode::getReference(shared_ptr<Environment> env)
 {
-    const RuntimeValue indexV = indexExp->evaluateNode(env);
+    const RuntimeValue indexV = indexExp->evaluateNode(env).value;
     if (indexV.isNumber())
     {
         if (auto* var = dynamic_cast<VariableNode*>(operand.get()))
@@ -190,27 +190,27 @@ void IndexNode::debugPrint(int indentLevel) const
     cout << "]\n";
 }
 
-RuntimeValue BinaryNode::evaluateNode(shared_ptr<Environment> env) const
+EvalResult BinaryNode::evaluateNode(shared_ptr<Environment> env) const
 {
     if (op.type == TokenType::AndAnd)
     {
-        RuntimeValue lval = left->evaluateNode(env);
+        RuntimeValue lval = left->evaluateNode(env).value;
         if (!lval.isTruthy())
-            return false;
-        RuntimeValue rval = right->evaluateNode(env);
+            return {true, false};
+        RuntimeValue rval = right->evaluateNode(env).value;
 
-        return rval.isTruthy();
+        return {true, rval.isTruthy()};
     }
     if (op.type == TokenType::OrOr)
     {
-        RuntimeValue lval = left->evaluateNode(env);
+        RuntimeValue lval = left->evaluateNode(env).value;
         if (lval.isTruthy())
-            return true;
-        RuntimeValue rval = right->evaluateNode(env);
-        return rval.isTruthy();
+            return {true, true};
+        RuntimeValue rval = right->evaluateNode(env).value;
+        return {true, rval.isTruthy()};
     }
-    RuntimeValue lval = left->evaluateNode(env);
-    RuntimeValue rval = right->evaluateNode(env);
+    RuntimeValue lval = left->evaluateNode(env).value;
+    RuntimeValue rval = right->evaluateNode(env).value;
 
     try
     {
@@ -221,14 +221,14 @@ RuntimeValue BinaryNode::evaluateNode(shared_ptr<Environment> env) const
             switch (op.type)
             {
             case TokenType::Plus:
-                return lvalue + rvalue;
+                return {true, lvalue + rvalue};
             case TokenType::Minus:
-                return lvalue - rvalue;
+                return {true, lvalue - rvalue};
             case TokenType::Multiply:
-                return lvalue * rvalue;
+                return {true, lvalue * rvalue};
             case TokenType::Modulo:
                 if (rvalue)
-                    return fmod(lvalue, rvalue);
+                    return {true, fmod(lvalue, rvalue)};
                 throw RuntimeError("cannot divide by zero", {
                                        .category = ErrorCategory::ZeroDivisionError,
                                        .kind = ErrorKind::DivisionByZero,
@@ -236,24 +236,24 @@ RuntimeValue BinaryNode::evaluateNode(shared_ptr<Environment> env) const
                                    });
             case TokenType::Divide:
                 if (rvalue)
-                    return lvalue / rvalue;
+                    return {true, lvalue / rvalue};
                 throw RuntimeError("cannot divide by zero", {
                                        .category = ErrorCategory::ZeroDivisionError,
                                        .kind = ErrorKind::DivisionByZero,
                                        .currentLine = line
                                    });
             case TokenType::Greater:
-                return lvalue > rvalue;
+                return {true, lvalue > rvalue};
             case TokenType::GreaterEqual:
-                return lvalue >= rvalue;
+                return {true, lvalue >= rvalue};
             case TokenType::LessEqual:
-                return lvalue <= rvalue;
+                return {true, lvalue <= rvalue};
             case TokenType::Less:
-                return lvalue < rvalue;
+                return {true, lvalue < rvalue};
             case TokenType::Equal:
-                return lvalue == rvalue;
+                return {true, lvalue == rvalue};
             case TokenType::NotEqual:
-                return lvalue != rvalue;
+                return {true, lvalue != rvalue};
             default: throw UnsupportedOperation();
             }
         }
@@ -264,19 +264,19 @@ RuntimeValue BinaryNode::evaluateNode(shared_ptr<Environment> env) const
             switch (op.type)
             {
             case TokenType::Plus:
-                return lvalue + rvalue;
+                return {true, lvalue + rvalue};
             case TokenType::Equal:
-                return lvalue == rvalue;
+                return {true, lvalue == rvalue};
             case TokenType::NotEqual:
-                return lvalue != rvalue;
+                return {true, lvalue != rvalue};
             case TokenType::Less:
-                return lvalue < rvalue;
+                return {true, lvalue < rvalue};
             case TokenType::LessEqual:
-                return lvalue <= rvalue;
+                return {true, lvalue <= rvalue};
             case TokenType::Greater:
-                return lvalue > rvalue;
+                return {true, lvalue > rvalue};
             case TokenType::GreaterEqual:
-                return lvalue >= rvalue;
+                return {true, lvalue >= rvalue};
             default: throw UnsupportedOperation();
             }
         }
@@ -287,15 +287,15 @@ RuntimeValue BinaryNode::evaluateNode(shared_ptr<Environment> env) const
             switch (op.type)
             {
             case TokenType::Plus:
-                return lvalue + rvalue;
+                return {true, lvalue + rvalue};
             case TokenType::Minus:
-                return lvalue - rvalue;
+                return {true, lvalue - rvalue};
             case TokenType::Multiply:
-                return lvalue * rvalue;
+                return {true, lvalue * rvalue};
             case TokenType::Divide:
                 {
                     if (rvalue)
-                        return lvalue / rvalue;
+                        return {true, lvalue / rvalue};
                     throw RuntimeError("cannot divide by zero", {
                                            .category = ErrorCategory::ZeroDivisionError,
                                            .kind = ErrorKind::DivisionByZero,
@@ -303,17 +303,17 @@ RuntimeValue BinaryNode::evaluateNode(shared_ptr<Environment> env) const
                                        });
                 }
             case TokenType::Greater:
-                return lvalue > rvalue;
+                return {true, lvalue > rvalue};
             case TokenType::GreaterEqual:
-                return lvalue >= rvalue;
+                return {true, lvalue >= rvalue};
             case TokenType::LessEqual:
-                return lvalue <= rvalue;
+                return {true, lvalue <= rvalue};
             case TokenType::Less:
-                return lvalue < rvalue;
+                return {true, lvalue < rvalue};
             case TokenType::Equal:
-                return lvalue == rvalue;
+                return {true, lvalue == rvalue};
             case TokenType::NotEqual:
-                return lvalue != rvalue;
+                return {true, lvalue != rvalue};
             default: throw UnsupportedOperation();
             }
         }
@@ -353,9 +353,12 @@ void BinaryNode::debugPrint(int indentLevel) const
     right->debugPrint(indentLevel + 1);
 }
 
-void ExpressionStatementNode::evaluateNode(shared_ptr<Environment> env) const
+EvalResult ExpressionStatementNode::evaluateNode(shared_ptr<Environment> env) const
 {
-    expressionStmt->evaluateNode(env);
+    RuntimeValue val = expressionStmt->evaluateNode(env).value;
+    // printRuntimeValue(val);
+    // cout << "\n";
+    return {true, val};
 }
 
 void ExpressionStatementNode::debugPrint(int indentLevel) const
@@ -364,11 +367,11 @@ void ExpressionStatementNode::debugPrint(int indentLevel) const
     expressionStmt->debugPrint(indentLevel + 1);
 }
 
-RuntimeValue VariableNode::evaluateNode(shared_ptr<Environment> env) const
+EvalResult VariableNode::evaluateNode(shared_ptr<Environment> env) const
 {
     try
     {
-        return env->getReference(identifierName).value;
+        return {true, env->getReference(identifierName).value};
     }
     catch (UndefinedVariable)
     {
@@ -400,9 +403,9 @@ void VariableNode::debugPrint(int i) const
     cout << "Variable(" << identifierName << ")\n";
 }
 
-RuntimeValue AssignmentNode::evaluateNode(shared_ptr<Environment> env) const
+EvalResult AssignmentNode::evaluateNode(shared_ptr<Environment> env) const
 {
-    RuntimeValue right = rvalue->evaluateNode(env);
+    RuntimeValue right = rvalue->evaluateNode(env).value;
     if (auto* var = dynamic_cast<VariableNode*>(lvalue.get()))
     {
         var->getReference(env) = right;
@@ -411,7 +414,7 @@ RuntimeValue AssignmentNode::evaluateNode(shared_ptr<Environment> env) const
     {
         indexElem->getReference(env) = right;
     }
-    return right;
+    return {false, right};
 }
 
 void AssignmentNode::debugPrint(int indentLevel) const
@@ -423,9 +426,9 @@ void AssignmentNode::debugPrint(int indentLevel) const
     rvalue->debugPrint(indentLevel + 1);
 }
 
-RuntimeValue CompoundAssignmentNode::evaluateNode(shared_ptr<Environment> env) const
+EvalResult CompoundAssignmentNode::evaluateNode(shared_ptr<Environment> env) const
 {
-    RuntimeValue rhs = rvalue->evaluateNode(env);
+    RuntimeValue rhs = rvalue->evaluateNode(env).value;
     if (auto* var = dynamic_cast<VariableNode*>(lvalue.get()))
     {
         auto& lhs = var->getReference(env);
@@ -434,15 +437,15 @@ RuntimeValue CompoundAssignmentNode::evaluateNode(shared_ptr<Environment> env) c
         case TokenType::PlusEqual:
             if (lhs.isNumber() && rhs.isNumber())
             {
-                return lhs.getNumberRef() += rhs.asNumber();;
+                return {false, lhs.getNumberRef() += rhs.asNumber()};
             }
             if (lhs.isString() && rhs.isString())
             {
-                return lhs.getStringRef() += rhs.asString();;
+                return {false, lhs.getStringRef() += rhs.asString()};
             }
             if (lhs.isBoolean() && rhs.isBoolean())
             {
-                return lhs.getBoolRef() += rhs.asBoolean();
+                return {false, lhs.getBoolRef() += rhs.asBoolean()};
             }
             throw RuntimeError("unsupported operations", {
                                    .category = ErrorCategory::TypeError, .kind = ErrorKind::UnsupportedOperation,
@@ -454,11 +457,11 @@ RuntimeValue CompoundAssignmentNode::evaluateNode(shared_ptr<Environment> env) c
         case TokenType::MinusEqual:
             if (lhs.isNumber() && rhs.isNumber())
             {
-                return lhs.getNumberRef() -= rhs.asNumber();;
+                return {false, lhs.getNumberRef() -= rhs.asNumber()};
             }
             if (lhs.isBoolean() && rhs.isBoolean())
             {
-                return lhs.getBoolRef() -= rhs.asBoolean();
+                return {false, lhs.getBoolRef() -= rhs.asBoolean()};
             }
             throw RuntimeError("unsupported operations", {
                                    .category = ErrorCategory::TypeError, .kind = ErrorKind::UnsupportedOperation,
@@ -470,11 +473,11 @@ RuntimeValue CompoundAssignmentNode::evaluateNode(shared_ptr<Environment> env) c
         case TokenType::MultiplyEqual:
             if (lhs.isNumber() && rhs.isNumber())
             {
-                return lhs.getNumberRef() *= rhs.asNumber();;
+                return {false, lhs.getNumberRef() *= rhs.asNumber()};
             }
             if (lhs.isBoolean() && rhs.isBoolean())
             {
-                return lhs.getBoolRef() *= rhs.asBoolean();
+                return {false, lhs.getBoolRef() *= rhs.asBoolean()};
             }
             throw RuntimeError("unsupported operations", {
                                    .category = ErrorCategory::TypeError, .kind = ErrorKind::UnsupportedOperation,
@@ -486,7 +489,7 @@ RuntimeValue CompoundAssignmentNode::evaluateNode(shared_ptr<Environment> env) c
             if (lhs.isNumber() && rhs.isNumber())
             {
                 if (rhs.asNumber())
-                    return lhs.getNumberRef() /= rhs.asNumber();;
+                    return {false, lhs.getNumberRef() /= rhs.asNumber()};
                 throw RuntimeError("division by zero", {
                                        .category = ErrorCategory::ZeroDivisionError,
                                        .kind = ErrorKind::DivisionByZero,
@@ -496,7 +499,7 @@ RuntimeValue CompoundAssignmentNode::evaluateNode(shared_ptr<Environment> env) c
             if (lhs.isBoolean() && rhs.isBoolean())
             {
                 if (rhs.asBoolean())
-                    return lhs.getBoolRef() /= rhs.asBoolean();
+                    return {false, lhs.getBoolRef() /= rhs.asBoolean()};
                 throw RuntimeError("division by zero", {
                                        .category = ErrorCategory::ZeroDivisionError,
                                        .kind = ErrorKind::DivisionByZero,
@@ -518,15 +521,15 @@ RuntimeValue CompoundAssignmentNode::evaluateNode(shared_ptr<Environment> env) c
         case TokenType::PlusEqual:
             if (lhs.isNumber() && rhs.isNumber())
             {
-                return lhs.getNumberRef() += rhs.asNumber();;
+                return {false, lhs.getNumberRef() += rhs.asNumber()};
             }
             if (lhs.isString() && rhs.isString())
             {
-                return lhs.getStringRef() += rhs.asString();;
+                return {false, lhs.getStringRef() += rhs.asString()};
             }
             if (lhs.isBoolean() && rhs.isBoolean())
             {
-                return lhs.getBoolRef() += rhs.asBoolean();
+                return {false, lhs.getBoolRef() += rhs.asBoolean()};
             }
             throw RuntimeError("unsupported operations", {
                                    .category = ErrorCategory::TypeError, .kind = ErrorKind::UnsupportedOperation,
@@ -538,11 +541,11 @@ RuntimeValue CompoundAssignmentNode::evaluateNode(shared_ptr<Environment> env) c
         case TokenType::MinusEqual:
             if (lhs.isNumber() && rhs.isNumber())
             {
-                return lhs.getNumberRef() -= rhs.asNumber();;
+                return {false, lhs.getNumberRef() -= rhs.asNumber()};
             }
             if (lhs.isBoolean() && rhs.isBoolean())
             {
-                return lhs.getBoolRef() -= rhs.asBoolean();
+                return {false, lhs.getBoolRef() -= rhs.asBoolean()};
             }
             throw RuntimeError("unsupported operations", {
                                    .category = ErrorCategory::TypeError, .kind = ErrorKind::UnsupportedOperation,
@@ -554,11 +557,11 @@ RuntimeValue CompoundAssignmentNode::evaluateNode(shared_ptr<Environment> env) c
         case TokenType::MultiplyEqual:
             if (lhs.isNumber() && rhs.isNumber())
             {
-                return lhs.getNumberRef() *= rhs.asNumber();;
+                return {false, lhs.getNumberRef() *= rhs.asNumber()};
             }
             if (lhs.isBoolean() && rhs.isBoolean())
             {
-                return lhs.getBoolRef() *= rhs.asBoolean();
+                return {false, lhs.getBoolRef() *= rhs.asBoolean()};
             }
             throw RuntimeError("unsupported operations", {
                                    .category = ErrorCategory::TypeError, .kind = ErrorKind::UnsupportedOperation,
@@ -570,7 +573,7 @@ RuntimeValue CompoundAssignmentNode::evaluateNode(shared_ptr<Environment> env) c
             if (lhs.isNumber() && rhs.isNumber())
             {
                 if (rhs.asNumber())
-                    return lhs.getNumberRef() /= rhs.asNumber();;
+                    return {false, lhs.getNumberRef() /= rhs.asNumber()};
                 throw RuntimeError("division by zero", {
                                        .category = ErrorCategory::ZeroDivisionError,
                                        .kind = ErrorKind::DivisionByZero,
@@ -580,7 +583,7 @@ RuntimeValue CompoundAssignmentNode::evaluateNode(shared_ptr<Environment> env) c
             if (lhs.isBoolean() && rhs.isBoolean())
             {
                 if (rhs.asBoolean())
-                    return lhs.getBoolRef() /= rhs.asBoolean();
+                    return {false, lhs.getBoolRef() /= rhs.asBoolean()};
                 throw RuntimeError("division by zero", {
                                        .category = ErrorCategory::ZeroDivisionError,
                                        .kind = ErrorKind::DivisionByZero,
@@ -603,9 +606,9 @@ void CompoundAssignmentNode::debugPrint(int indentLevel) const
     rvalue->debugPrint(indentLevel + 1);
 }
 
-void DeclarationNode::evaluateNode(shared_ptr<Environment> env) const
+EvalResult DeclarationNode::evaluateNode(shared_ptr<Environment> env) const
 {
-    RuntimeValue right = rvalue->evaluateNode(env);
+    RuntimeValue right = rvalue->evaluateNode(env).value;
     if (auto* var = dynamic_cast<VariableNode*>(lvalue.get()))
     {
         try
@@ -623,6 +626,7 @@ void DeclarationNode::evaluateNode(shared_ptr<Environment> env) const
                                });
         }
     }
+    return {false};
 }
 
 void DeclarationNode::debugPrint(int indentLevel) const
@@ -634,14 +638,12 @@ void DeclarationNode::debugPrint(int indentLevel) const
     rvalue->debugPrint(indentLevel + 1);
 }
 
-void IfNode::evaluateNode(shared_ptr<Environment> env) const
+EvalResult IfNode::evaluateNode(shared_ptr<Environment> env) const
 {
     auto currentEnv = std::make_shared<Environment>();
     currentEnv->parent = env;
 
-    RuntimeValue truthVal = condition->evaluateNode(currentEnv);
-
-    if (truthVal.isTruthy())
+    if (condition->evaluateNode(currentEnv).value.isTruthy())
         thenStatement->evaluateNode(currentEnv);
 
     else
@@ -649,6 +651,7 @@ void IfNode::evaluateNode(shared_ptr<Environment> env) const
         if (elseStatement)
             elseStatement->evaluateNode(currentEnv);
     }
+    return {false};
 }
 
 
@@ -668,12 +671,12 @@ void IfNode::debugPrint(int indentLevel) const
     }
 }
 
-void WhileNode::evaluateNode(shared_ptr<Environment> env) const
+EvalResult WhileNode::evaluateNode(shared_ptr<Environment> env) const
 {
     auto currentEnv = std::make_shared<Environment>();
     currentEnv->parent = env;
 
-    while (condition->evaluateNode(currentEnv).isTruthy())
+    while (condition->evaluateNode(currentEnv).value.isTruthy())
     {
         try
         {
@@ -689,6 +692,7 @@ void WhileNode::evaluateNode(shared_ptr<Environment> env) const
             continue;
         }
     }
+    return {false};
 }
 
 void WhileNode::debugPrint(int indentLevel) const
@@ -699,7 +703,7 @@ void WhileNode::debugPrint(int indentLevel) const
     statement->debugPrint(indentLevel + 1);
 }
 
-void ForNode::evaluateNode(shared_ptr<Environment> env) const
+EvalResult ForNode::evaluateNode(shared_ptr<Environment> env) const
 {
     auto currentEnv = std::make_shared<Environment>();
     currentEnv->parent = env;
@@ -712,7 +716,7 @@ void ForNode::evaluateNode(shared_ptr<Environment> env) const
         try
         {
             if (condition)
-                if (!condition->evaluateNode(currentEnv).isTruthy())
+                if (!condition->evaluateNode(currentEnv).value.isTruthy())
                     break;
 
             statement->evaluateNode(currentEnv);
@@ -728,7 +732,9 @@ void ForNode::evaluateNode(shared_ptr<Environment> env) const
             continue;
         }
     }
+    return {false};
 }
+
 
 void ForNode::debugPrint(int indentLevel) const
 {
@@ -740,7 +746,7 @@ void ForNode::debugPrint(int indentLevel) const
     statement->debugPrint(indentLevel + 1);
 }
 
-void BreakNode::evaluateNode(shared_ptr<Environment> env) const
+EvalResult BreakNode::evaluateNode(shared_ptr<Environment> env) const
 {
     throw BreakSignal();
 }
@@ -750,7 +756,7 @@ void BreakNode::debugPrint(int indentLevel) const
     cout << "Break\n";
 }
 
-void ContinueNode::evaluateNode(shared_ptr<Environment> env) const
+EvalResult ContinueNode::evaluateNode(shared_ptr<Environment> env) const
 {
     throw ContinueSignal();
 }
@@ -760,7 +766,7 @@ void ContinueNode::debugPrint(int indentLevel) const
     cout << "Continue\n";
 }
 
-void BlockNode::evaluateNode(shared_ptr<Environment> env) const
+EvalResult BlockNode::evaluateNode(shared_ptr<Environment> env) const
 {
     // ScopedEnvironment local(env);
     auto currentEnv = std::make_shared<Environment>();
@@ -769,6 +775,7 @@ void BlockNode::evaluateNode(shared_ptr<Environment> env) const
     {
         statement->evaluateNode(currentEnv);
     }
+    return {false};
 }
 
 void BlockNode::debugPrint(int indentLevel) const
@@ -782,7 +789,7 @@ void BlockNode::debugPrint(int indentLevel) const
     cout << string(IndentSize * indentLevel, ' ') << "}\n";
 }
 
-RuntimeValue FunctionCallNode::evaluateNode(shared_ptr<Environment> env) const
+EvalResult FunctionCallNode::evaluateNode(shared_ptr<Environment> env) const
 {
     if (auto* func = dynamic_cast<VariableNode*>(identifier.get()))
     {
@@ -790,7 +797,15 @@ RuntimeValue FunctionCallNode::evaluateNode(shared_ptr<Environment> env) const
         try
         {
             RuntimeValue obj = env->getReference(f_name).value;
+            if (obj.isNativeFunction())
+            {
+                auto function = obj.asNativeFunction();
+                vector<RuntimeValue> args;
+                for (const auto& argument : arguments)
+                    args.push_back(argument->evaluateNode(env).value);
 
+                return {true, function.call(args)};
+            }
             if (obj.isFunctionObj())
             {
                 auto function = obj.asFunctionObj();
@@ -800,9 +815,21 @@ RuntimeValue FunctionCallNode::evaluateNode(shared_ptr<Environment> env) const
                     if (arguments.size() == function.parameters.size())
                     {
                         for (const auto& argument : arguments)
-                            args.push_back(argument->evaluateNode(env));
+                            args.push_back(argument->evaluateNode(env).value);
 
-                        return function.call(args);
+                        try
+                        {
+                            return {true, function.call(args)};
+                        }
+                        catch (MaxRecursion)
+                        {
+                            throw RuntimeError("maximum recursion depth reached", {
+                                                   .category = ErrorCategory::RecursionError,
+                                                   .kind = ErrorKind::MaxRecursionLimit,
+                                                   .identifier = f_name,
+                                                   .currentLine = line,
+                                               });
+                        }
                     }
                 }
                 else
@@ -815,11 +842,11 @@ RuntimeValue FunctionCallNode::evaluateNode(shared_ptr<Environment> env) const
                         for (int i = 0; i < arguments.size(); ++i)
                         {
                             if (i < function.parameters.size())
-                                args.push_back(arguments[i]->evaluateNode(env));
+                                args.push_back(arguments[i]->evaluateNode(env).value);
                             else
-                                restArgs.push_back(arguments[i]->evaluateNode(env));
+                                restArgs.push_back(arguments[i]->evaluateNode(env).value);
                         }
-                        return function.call(args, restArgs);
+                        return {true, function.call(args, restArgs)};
                     }
                 }
                 validateArity(function.parameters.size(), arguments.size(), f_name, line);
@@ -827,147 +854,12 @@ RuntimeValue FunctionCallNode::evaluateNode(shared_ptr<Environment> env) const
             throw RuntimeError("object is not callable", {
                                    .category = ErrorCategory::TypeError,
                                    .kind = ErrorKind::NotCallable,
-                                   .primary = identifier->evaluateNode(env).description(),
+                                   .primary = identifier->evaluateNode(env).value.description(),
                                    .currentLine = line,
                                });
         }
         catch (UndefinedVariable)
         {
-            if (f_name == "abs")
-            {
-                if (arguments.size() == 1)
-                    return abs(static_cast<int>(arguments[0]->evaluateNode(env).asNumber()));
-                validateArity(1, arguments.size(), "abs", line);
-            }
-            if (f_name == "max")
-            {
-                if (arguments.size() == 2)
-                    return std::max(arguments[0]->evaluateNode(env).asNumber(),
-                                    arguments[1]->evaluateNode(env).asNumber());
-                validateArity(2, arguments.size(), "max", line);
-            }
-            if (f_name == "min")
-            {
-                if (arguments.size() == 2)
-                    return std::min(arguments[0]->evaluateNode(env).asNumber(),
-                                    arguments[1]->evaluateNode(env).asNumber());
-                validateArity(2, arguments.size(), "min", line);
-            }
-            // if (f_name == "avg")
-            // {
-            //     if (!arguments.empty())
-            //     {
-            //         double avg = 0;
-            //         for (const auto& argument : arguments)
-            //             avg += argument->evaluateNode(env).asNumber();
-            //         avg = avg / arguments.size();
-            //         return avg;
-            //     }
-            //     validateArity(1, arguments.size(), "avg", line);
-            // }
-            if (f_name == "print")
-            {
-                if (!arguments.empty())
-                {
-                    for (const auto& argument : arguments)
-                    {
-                        RuntimeValue arg = argument->evaluateNode(env);
-                        printRuntimeValue(arg);
-                        cout << " ";
-                    }
-                }
-                else cout << "";
-                return {};
-            }
-
-            if (f_name == "println")
-            {
-                if (!arguments.empty())
-                {
-                    for (const auto& argument : arguments)
-                    {
-                        RuntimeValue arg = argument->evaluateNode(env);
-                        printRuntimeValue(arg);
-                        cout << " ";
-                    }
-                    cout << '\n';
-                }
-                else cout << "";
-                return {};
-            }
-            if (f_name == "size")
-            {
-                if (arguments.size() == 1)
-                {
-                    RuntimeValue arg = arguments[0]->evaluateNode(env);
-                    if (arg.isArray())
-                        return static_cast<double>(arg.asArrayPtr()->size());
-                    if (arg.isString())
-                        return static_cast<double>(arg.asString().size());
-                    throw std::runtime_error("invalid operand for size method");
-                }
-                validateArity(1, arguments.size(), "size", line);
-            }
-            if (f_name == "push")
-            {
-                if (arguments.size() == 2)
-                {
-                    if (auto* var = dynamic_cast<VariableNode*>(arguments[0].get()))
-                    {
-                        RuntimeValue& arr = var->getReference(env);
-                        if (arr.isArray())
-                        {
-                            RuntimeValue value = arguments[1]->evaluateNode(env);
-                            arr.asArrayPtr()->push_back(value);
-                            return {};
-                        }
-                        throw std::runtime_error("invalid operand for push");
-                    }
-                }
-            }
-            if (f_name == "read")
-            {
-                if (!arguments.empty())
-                {
-                    for (const auto& argument : arguments)
-                    {
-                        RuntimeValue arg = argument->evaluateNode(env);
-                        printRuntimeValue(arg);
-                        cout << " ";
-                    }
-                    cout << '\n';
-                }
-                else cout << "";
-                string input;
-                getline(std::cin, input, ' ');
-                return input;
-            }
-            if (f_name == "readln")
-            {
-                if (!arguments.empty())
-                {
-                    for (const auto& argument : arguments)
-                    {
-                        RuntimeValue arg = argument->evaluateNode(env);
-                        printRuntimeValue(arg);
-                        cout << " ";
-                    }
-                    cout << '\n';
-                }
-                else cout << "";
-                string input;
-                getline(std::cin, input);
-                return input;
-            }
-            if (f_name == "type")
-            {
-                if (arguments.size() == 1)
-                {
-                    const RuntimeValue& obj = arguments[0]->evaluateNode(env);
-                    return obj.description();
-                }
-                validateArity(1, arguments.size(), f_name, line);
-            }
             throw RuntimeError("function is not defined", {
                                    .category = ErrorCategory::NameError, .kind = ErrorKind::FunctionUndefined,
                                    .identifier = f_name, .currentLine = line
@@ -976,7 +868,7 @@ RuntimeValue FunctionCallNode::evaluateNode(shared_ptr<Environment> env) const
     }
     if (auto* func = dynamic_cast<FunctionCallNode*>(identifier.get()))
     {
-        RuntimeValue obj = identifier->evaluateNode(env);
+        RuntimeValue obj = identifier->evaluateNode(env).value;
         if (obj.isFunctionObj())
         {
             auto function = obj.asFunctionObj();
@@ -984,16 +876,16 @@ RuntimeValue FunctionCallNode::evaluateNode(shared_ptr<Environment> env) const
             if (arguments.size() == function.parameters.size())
             {
                 for (const auto& argument : arguments)
-                    args.push_back(argument->evaluateNode(env));
+                    args.push_back(argument->evaluateNode(env).value);
 
-                return function.call(args);
+                return {true, function.call(args)};
             }
             validateArity(function.parameters.size(), arguments.size(), function.f_name, line);
         }
         throw RuntimeError("object is not callable", {
                                .category = ErrorCategory::TypeError,
                                .kind = ErrorKind::NotCallable,
-                               .primary = identifier->evaluateNode(env).description(),
+                               .primary = identifier->evaluateNode(env).value.description(),
                                .currentLine = line,
                            });
     }
@@ -1001,7 +893,7 @@ RuntimeValue FunctionCallNode::evaluateNode(shared_ptr<Environment> env) const
     throw RuntimeError("object is not callable", {
                            .category = ErrorCategory::TypeError,
                            .kind = ErrorKind::NotCallable,
-                           .primary = identifier->evaluateNode(env).description(),
+                           .primary = identifier->evaluateNode(env).value.description(),
                            .currentLine = line,
                        });
 }
@@ -1060,7 +952,7 @@ void validateArity(int expected_arguments, int given_arguments, string f_name, i
     }
 }
 
-void FunctionDeclarationNode::evaluateNode(shared_ptr<Environment> env) const
+EvalResult FunctionDeclarationNode::evaluateNode(shared_ptr<Environment> env) const
 {
     auto iter = functions.find(identifier);
     if (iter == functions.end())
@@ -1077,6 +969,7 @@ void FunctionDeclarationNode::evaluateNode(shared_ptr<Environment> env) const
                                .identifier = identifier,
                                .currentLine = line
                            });
+    return {false};
 }
 
 void FunctionDeclarationNode::debugPrint(int indentLevel) const
@@ -1095,10 +988,10 @@ void FunctionDeclarationNode::debugPrint(int indentLevel) const
     body->debugPrint(indentLevel + 1);
 }
 
-void ReturnNode::evaluateNode(shared_ptr<Environment> env) const
+EvalResult ReturnNode::evaluateNode(shared_ptr<Environment> env) const
 {
     if (returnStatement)
-        throw ReturnSignal(returnStatement->evaluateNode(env));
+        throw ReturnSignal(returnStatement->evaluateNode(env).value);
     throw ReturnSignal({});
 }
 
@@ -1110,10 +1003,11 @@ void ReturnNode::debugPrint(int indentLevel) const
         returnStatement->debugPrint(indentLevel + 1);
 }
 
-void ProgramNode::evaluateNode(shared_ptr<Environment> env)
+EvalResult ProgramNode::evaluateNode(shared_ptr<Environment> env)
 {
     for (auto& stmt : statements)
         stmt->evaluateNode(env);
+    return {false};
 }
 
 void ProgramNode::debugPrint(int indentLevel)
@@ -1126,8 +1020,9 @@ void ProgramNode::debugPrint(int indentLevel)
     }
 }
 
-void EmptyNode::evaluateNode(shared_ptr<Environment> env) const
+EvalResult EmptyNode::evaluateNode(shared_ptr<Environment> env) const
 {
+    return {false};
 }
 
 void EmptyNode::debugPrint(int indentLevel) const
@@ -1153,6 +1048,8 @@ string getErrorCategoryString(ErrorCategory category)
         return "ValueError";
     case ErrorCategory::IndexError:
         return "IndexError";
+    case ErrorCategory::RecursionError:
+        return "RecursionError";
     }
 }
 

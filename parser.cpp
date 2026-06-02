@@ -158,14 +158,13 @@ unique_ptr<StatementNode> parseStatement(TokenStream& ts)
     }
     if (check(TokenType::Return, ts))
     {
-        // if (functionLevel > 0)
+        if (functionLevel > 0)
         {
             match(TokenType::Return, ts);
             if (match(TokenType::Semicolon, ts)) return make_unique<ReturnNode>();
             unique_ptr<ExpressionNode> returnNode = parseEquality(ts);
             consume(TokenType::Semicolon, "expected ';' after return statement", ts);
             if constexpr (DEBUG_PARSER) debugExit(parserName);
-            --functionLevel;
             return make_unique<ReturnNode>(std::move(returnNode));
         }
         throw ParserError("return statement not within a function", ts.getLineNo());

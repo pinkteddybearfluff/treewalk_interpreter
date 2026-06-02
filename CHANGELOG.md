@@ -14,13 +14,23 @@ and this project uses a scheme similar to semantic versioning, however it does n
 - Add REPL for language.
 - Add support for including/importing files and modules.
 - Add support for switch case.
-- Support for logical operators
-- Support for compound assignment.
-- Support for modulo operator.
+- Richer standard library for string and math.
 
 ### Changed
 
 ### Removed
+
+## [0.16.0] - 2026-06-02
+
+### Added
+
+- Integrated standard library into the interpreter.
+- Changed the behavior of native functions, now native functions are also treated as first class citizens.
+- Early version of REPL.
+
+### Fixed
+
+- No longer return statement withing functions cause semantic/syntax error due to previous bug.
 
 ## [0.15.0] - 2026-06-01
 
