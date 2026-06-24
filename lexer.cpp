@@ -17,7 +17,7 @@ string TokenStream::getVarName()
             }
             if (!is)
             {
-                if (is.eof()) throw std::runtime_error("Expected ;");
+                if (is.eof()) throw LexerError{"Expected ;", lineNo};
             }
             if (isspace(ch)) break;
         }
@@ -66,7 +66,7 @@ string TokenStream::getString()
 {
     string str;
     int ch = is.get();
-    while (ch != '"')
+    while (ch != '"' && ch != EOF)
     {
         str += static_cast<char>(ch);
         ch = is.get();
@@ -133,7 +133,7 @@ Token TokenStream::readFromStream()
     {
         string str;
         str = getString();
-        if (is.get() != '"') throw std::runtime_error("expected '\"' for string termination");
+        if (is.get() != '"') throw LexerError{"expected '\"' for string termination", lineNo};
         return Token{.type = TokenType::String, .literal = str, .line = lineNo};
     }
     if (!is)
@@ -143,6 +143,8 @@ Token TokenStream::readFromStream()
             return Token{.type = TokenType::End, .line = lineNo};
         }
     }
+    if (ch == EOF)
+        return Token{.type = TokenType::End, .line = lineNo};
     if (isalpha(ch) || ch == '_')
     {
         is.unget();
@@ -159,6 +161,8 @@ Token TokenStream::readFromStream()
         if (name == "continue") return Token{.type = TokenType::Continue, .line = lineNo};
         if (name == "for") return Token{.type = TokenType::For, .line = lineNo};
         if (name == "null") return Token{.type = TokenType::Null, .literal = std::monostate{}, .line = lineNo};
+        if (name == "import") return Token{.type = TokenType::Import, .line = lineNo};
+        if (name == "as") return Token{.type = TokenType::As, .line = lineNo};
 
         return Token{.type = TokenType::Identifier, .name = name, .line = lineNo};
     }
@@ -172,6 +176,7 @@ Token TokenStream::peek()
     if (bufferCount == 0)
     {
         if constexpr (DEBUG_LEXER) debugPrintBuffer();
+        previous = buffer[0];
         buffer[0] = readFromStream();
         ++bufferCount;
         if constexpr (DEBUG_LEXER)
@@ -241,6 +246,11 @@ Token TokenStream::charToToken(int ch)
         {
             is.get();
             return Token{.type = TokenType::MinusEqual, .line = lineNo};
+        }
+        if (is.peek() == '>')
+        {
+            is.get();
+            return Token{.type = TokenType::Arrow, .line = lineNo};
         }
         return Token{.type = TokenType::Minus, .line = lineNo};
     case '*':
@@ -324,7 +334,7 @@ Token TokenStream::charToToken(int ch)
             is.get();
             return Token{.type = TokenType::OrOr, .line = lineNo};
         }
-        throw LexerError("invalid syntax " + string(1, ch), getLineNo());
+        return Token{.type = TokenType::Pipe, .line = lineNo};
     case '%':
         return Token{.type = TokenType::Modulo, .line = lineNo};
     case '.':
@@ -339,6 +349,8 @@ Token TokenStream::charToToken(int ch)
             throw LexerError("invalid syntax '..'", getLineNo());
         }
         return Token{.type = TokenType::Dot, .line = lineNo};
+    case ':':
+        return Token{.type = TokenType::Colon, .line = lineNo};
     default:
         cout << static_cast<char>(ch) << std::endl;
         throw LexerError("invalid syntax " + string(1, ch), getLineNo());
@@ -454,6 +466,16 @@ string getStringForType(TokenType type)
         return "Ellipsis";
     case TokenType::Dot:
         return "Dot";
+    case TokenType::Import:
+        return "Import";
+    case TokenType::As:
+        return "As";
+    case TokenType::Colon:
+        return "Colon";
+    case TokenType::Pipe:
+        return "Pipe";
+    case TokenType::Arrow:
+        return "Arrow";
     }
 }
 

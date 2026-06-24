@@ -1,0 +1,275 @@
+#ifndef INTERPRETER_RUNTIMEVALUE_H
+#define INTERPRETER_RUNTIMEVALUE_H
+
+#include<string>
+#include <vector>
+#include <functional>
+#include <map>
+#include <memory>
+#include <optional>
+#include "RuntimeError.h"
+#include <variant>
+
+
+using std::string;
+using std::vector;
+using std::shared_ptr;
+
+class RuntimeValue;
+class BlockNode;
+struct Environment;
+
+class Module
+{
+public:
+    Module(shared_ptr<Environment> env, string name) : env{std::move(env)}, name{name}
+    {
+    }
+
+    RuntimeValue& getMember(const std::string& memberName);
+    const RuntimeValue& getMember(const std::string& memberName) const;
+
+    string getName() const { return name; }
+
+private:
+    shared_ptr<Environment> env;
+    string name;
+};
+
+struct Callable
+{
+    string f_name;
+    int callLine;
+    virtual RuntimeValue call(const vector<RuntimeValue>& arguments, int line) const =0;
+    virtual ~Callable() = default;
+};
+
+struct FunctionObject : public Callable
+{
+    vector<string> parameters;
+    const BlockNode* body;
+    shared_ptr<Environment> closure;
+    bool variadic;
+    string variadicParamName;
+
+    FunctionObject(string f_name, vector<string> parameters, const BlockNode* body,
+                   shared_ptr<Environment> closure,
+                   bool variadic, string variadicParamName, int line) : parameters{parameters}, body{body},
+                                                                        closure{std::move(closure)},
+                                                                        variadic{variadic},
+                                                                        variadicParamName{variadicParamName},
+                                                                        f_name{f_name},
+                                                                        callLine{line}
+    {
+    }
+
+
+    RuntimeValue call(const vector<RuntimeValue>& arguments, int line) const override;
+
+protected:
+    string f_name;
+    int callLine;
+};
+
+class MaxRecursion
+{
+};
+
+struct NativeFunction : public Callable
+{
+    std::function<RuntimeValue(const vector<RuntimeValue>& args)> fn;
+
+    NativeFunction(std::function<RuntimeValue(const vector<RuntimeValue>& args)> function,
+                   string f_name) : fn{function}, f_name{f_name}
+    {
+    }
+
+    RuntimeValue call(const vector<RuntimeValue>& arguments, int line) const override;
+
+protected:
+    string f_name;
+    int callLine;
+};
+
+void validateArity(string identifier, int expectedArgs, int actualArgs, bool variadic = false);
+
+
+void printRuntimeValue(const RuntimeValue& val);
+
+struct Uninitialized
+{
+};
+
+// Runtime value type is decided at run time.
+// Allowing for dynamically type language like usage.
+class RuntimeValue
+{
+public:
+    enum class Kind
+    {
+        Number,
+        String,
+        Boolean,
+        Array,
+        Null,
+        Callable,
+        Uninitialized,
+        Module,
+    };
+
+    using Array = vector<RuntimeValue>;
+    using Type = std::variant<double, bool, string, std::monostate, shared_ptr<Array>, shared_ptr<Callable>, shared_ptr<
+                                  Module>, Uninitialized>;
+
+    RuntimeValue(Type d) : data{d}
+    {
+    };
+
+    RuntimeValue(Uninitialized) : data{Uninitialized()}
+    {
+    }
+
+    RuntimeValue(shared_ptr<Callable> fnPtr) : data{fnPtr}
+    {
+    };
+
+    RuntimeValue(char c) : data{string(1, c)}
+    {
+    };
+
+    RuntimeValue(double d) : data{d}
+    {
+    }
+
+    RuntimeValue(string str) : data{str}
+    {
+    }
+
+    RuntimeValue(int i) : data{static_cast<double>(i)}
+    {
+    }
+
+    RuntimeValue(bool b) : data{b}
+    {
+    }
+
+    RuntimeValue(shared_ptr<Array> arrayPtr) : data{arrayPtr}
+    {
+    }
+
+    RuntimeValue(shared_ptr<Module> modulePtr) : data{modulePtr}
+    {
+    }
+
+    RuntimeValue() : data{std::monostate{}}
+    {
+    }
+
+    [[nodiscard]] bool isNumber() const
+    {
+        return std::holds_alternative<double>(data);
+    };
+
+    [[nodiscard]] bool isString() const
+    {
+        return std::holds_alternative<string>(data);
+    };
+
+    [[nodiscard]] bool isBoolean() const
+    {
+        return std::holds_alternative<bool>(data);
+    };
+
+    [[nodiscard]] bool isArray() const
+    {
+        return std::holds_alternative<shared_ptr<Array>>(data);
+    }
+
+    [[nodiscard]] bool isNull() const
+    {
+        return std::holds_alternative<std::monostate>(data);
+    }
+
+    [[nodiscard]] bool isCallable() const
+    {
+        return std::holds_alternative<shared_ptr<Callable>>(data);
+    }
+
+    [[nodiscard]] bool isModule() const { return std::holds_alternative<shared_ptr<Module>>(data); }
+    [[nodiscard]] bool isUninitialized() const { return std::holds_alternative<Uninitialized>(data); }
+    [[nodiscard]] bool isTruthy() const;
+
+    [[nodiscard]] double asNumber() const
+    {
+        if (isNumber())
+            return std::get<double>(data);
+        if (isBoolean())
+            return static_cast<double>(std::get<bool>(data));
+    };
+
+    [[nodiscard]] double& getNumberRef()
+    {
+        return std::get<double>(data);
+    };
+    [[nodiscard]] const string& asString() const { return std::get<string>(data); }
+
+    [[nodiscard]] std::monostate asNull() const { return std::get<std::monostate>(data); }
+    string& getStringRef() { return std::get<string>(data); }
+    [[nodiscard]] bool asBoolean() const { return std::get<bool>(data); }
+
+    [[nodiscard]] bool& getBoolRef()
+    {
+        return std::get<bool>(data);
+    };
+    [[nodiscard]] shared_ptr<Array> asArrayPtr() const { return std::get<shared_ptr<Array>>(data); }
+    [[nodiscard]] shared_ptr<Array>& getArrayPtrRef() { return std::get<shared_ptr<Array>>(data); }
+    [[nodiscard]] shared_ptr<Callable> asCallableObj() const { return std::get<shared_ptr<Callable>>(data); }
+
+    [[nodiscard]] shared_ptr<Module> asModulePtr() const { return std::get<shared_ptr<Module>>(data); }
+    [[nodiscard]] shared_ptr<Module>& getModuleRef() { return std::get<shared_ptr<Module>>(data); }
+
+    [[nodiscard]] string description() const;
+    [[nodiscard]] Kind kind() const;
+
+private:
+    Type data;
+};
+
+RuntimeValue add(const RuntimeValue& a, const RuntimeValue& b);
+
+class CallDepthGuard
+{
+public:
+    CallDepthGuard(int& callDepth) : depth{callDepth}
+    {
+        ++depth;
+    }
+
+    ~CallDepthGuard()
+    {
+        --depth;
+    }
+
+private:
+    int& depth;
+};
+
+namespace Operator
+{
+    RuntimeValue add(const RuntimeValue& a, const RuntimeValue& b);
+    RuntimeValue sub(const RuntimeValue& a, const RuntimeValue& b);
+    RuntimeValue multiply(const RuntimeValue& a, const RuntimeValue& b);
+    RuntimeValue divide(const RuntimeValue& a, const RuntimeValue& b);
+    RuntimeValue modulo(const RuntimeValue& a, const RuntimeValue& b);
+
+    RuntimeValue equal(const RuntimeValue& a, const RuntimeValue& b);
+    RuntimeValue notEqual(const RuntimeValue& a, const RuntimeValue& b);
+    RuntimeValue greater(const RuntimeValue& a, const RuntimeValue& b);
+    RuntimeValue greaterEqual(const RuntimeValue& a, const RuntimeValue& b);
+    RuntimeValue less(const RuntimeValue& a, const RuntimeValue& b);
+    RuntimeValue lessEqual(const RuntimeValue& a, const RuntimeValue& b);
+
+    RuntimeValue logicalAnd(const RuntimeValue& a, const RuntimeValue& b);
+}
+
+#endif //INTERPRETER_RUNTIMEVALUE_H

@@ -4,12 +4,18 @@
 #include <string_view>
 #include <chrono>
 #include <format>
+#include <ranges>
+#include <sstream>
 #include "parser.h"
 #include "ast.h"
 #include "lexer.h"
-#include "stacks.h"
+#include "environment.h"
 #include "version.h"
 #include "stdlib.h"
+#include "RuntimeValue.h"
+#include "RuntimeError.h"
+#include "utilities.h"
+#include "secrets.h"
 
 // The Laven Language Lavender
 
@@ -18,50 +24,80 @@
 //Todo: 3) Improve functionCallNode;
 //Todo: 4) Implement Call abstractions
 //Todo: 5) Have Lvalue for VariableNode and IndexNode
-//Todo: 6) Integrate stdlib to program
 //Todo: 7) automate testing with python
 //TODO: 8) add syntax highlighting
 
 
-int main(int argc, char** argv)
+auto main(int argc, char** argv) -> int
 {
     auto start = std::chrono::high_resolution_clock::now();
     auto parseCompleteFlag = std::chrono::high_resolution_clock::now();
     auto evalCompleteFlag = std::chrono::high_resolution_clock::now();
 
-    shared_ptr<Environment> env = std::make_shared<Environment>();
+    //shared_ptr so to make Environment a linked structure
+    InterpreterContext ctx{std::make_shared<Environment>(), std::make_shared<ModuleManager>()};
+
+    shared_ptr<Environment> env = ctx.env;
+    shared_ptr<ModuleManager> modules = ctx.module;
+
     env->declare("__VERSION__", {string(LANGUAGE_VERSION), 0});
     env->parent = nullptr;
-    string file = "../stdlib/string.som";
     registerStdLib(*env);
     vector<unique_ptr<ProgramNode>> loadedLibraries;
-    loadedLibraries.push_back(loadStdlib("math.som", env));
-    loadedLibraries.push_back(loadStdlib("array.som", env));
+    loadedLibraries.push_back(loadStdlib("array", ctx));
 
-    bool REPL = true;
+    bool REPL{true};
 
     if (argv[1])
     {
         std::string_view cmd = argv[1];
         if (cmd == "--version" || cmd == "-v")
         {
-            cout << "Laven" << LANGUAGE_VERSION << "\n";
+            cout << "Laven " << LANGUAGE_VERSION << "\n";
             return 0;
         }
-        file = argv[1];
-    }
-    std::ifstream is(file);
-    if (!is.is_open())
-    {
-        throw std::runtime_error("Failed to open file");
-    }
-
-    try
-    {
-        int result{0};
-        vector<unique_ptr<StatementNode>> nodes;
-        if (!REPL)
+        if (cmd == "fmt" || cmd == "format")
         {
+            if (argv[2])
+            {
+                string file = argv[2];
+                std::ifstream is(file);
+                if (!is.is_open())
+                {
+                    throw std::runtime_error("Failed to open file");
+                }
+
+                vector<unique_ptr<StatementNode>> nodes;
+                TokenStream ts{is};
+                while (!check(TokenType::End, ts))
+                {
+                    nodes.push_back(parseStatement(ts));
+                }
+                unique_ptr<ProgramNode> program = make_unique<ProgramNode>(std::move(nodes));
+
+                std::ofstream formattedFile(file);
+                FormatContext fmtCtx{0, formattedFile};
+
+                program->format(fmtCtx);
+                return 0;
+            }
+        }
+        string file = argv[1];
+        ctx.currentFile = file;
+        ctx.workingDir = getFolder(file);
+        ctx.module->loadedModules.insert({file, nullptr});
+        REPL = false;
+        std::ifstream is(file);
+
+        if (!is.is_open())
+        {
+            throw std::runtime_error("Failed to open file");
+        }
+        try
+        {
+            int result{0};
+            vector<unique_ptr<StatementNode>> nodes;
+
             TokenStream ts{is};
             while (!check(TokenType::End, ts))
             {
@@ -69,144 +105,135 @@ int main(int argc, char** argv)
             }
 
             parseCompleteFlag = std::chrono::high_resolution_clock::now();
-            cout << std::format("<--------Parsing completed-------------> [Time:{}]",
-                                std::chrono::duration<double>(parseCompleteFlag - start).count()) << '\n';
+            // cout << std::format("<--------Parsing completed-------------> [Time:{}]",
+            //                     std::chrono::duration<double>(parseCompleteFlag - start).count()) << '\n';
             unique_ptr<ProgramNode> program = make_unique<ProgramNode>(std::move(nodes));
-            program->evaluateNode(env);
-
             evalCompleteFlag = std::chrono::high_resolution_clock::now();
-            cout << std::format("<----------Evaluation complete---------> [Time:{}]",
-                                std::chrono::duration<double>(evalCompleteFlag - start).count()) << '\n';
+            // cout << std::format("<----------Evaluation complete---------> [Time:{}]",
+            //                     std::chrono::duration<double>(evalCompleteFlag - start).count()) << '\n';
             if constexpr (DEBUG_AST)
                 program->debugPrint(0);
 
+
+            program->evaluateNode(ctx);
+            // FormatContext fmtCtx;
+            //
+            // program->format(fmtCtx);
 
             // if constexpr (DEBUG_ENV);
             // env.debugEnvPrint();
             auto end = std::chrono::high_resolution_clock::now();
 
-            std::cout
-                << std::format("[Total time taken: {}]", std::chrono::duration<double>(end - start).count()) << '\n';
+            // std::cout
+            //     << std::format("[Total time taken: {}]",
+            //                    std::chrono::duration<double>(end - start).count()) << '\n';
+            //
+            // std::cout
+            //     << std::format("[Time taken for parsing: {}]",
+            //                    std::chrono::duration<double>(parseCompleteFlag - start).count()) << '\n';
+            // std::cout
+            //     << std::format("Time taken for evaluation: {}]",
+            //                    std::chrono::duration<double>(evalCompleteFlag - parseCompleteFlag).count()) << '\n';
 
-            std::cout
-                << std::format("[Time taken for parsing: {}]",
-                               std::chrono::duration<double>(parseCompleteFlag - start).count()) << '\n';
-            std::cout
-                << std::format("Time taken for evaluation: {}]",
-                               std::chrono::duration<double>(evalCompleteFlag - parseCompleteFlag).count()) << '\n';
+            return 0;
         }
-        else
+        catch (const LexerError& le)
         {
-            TokenStream ts{std::cin};
-            while (true)
+            std::cerr << "File " << color::magenta << "\"" << ctx.currentFile << "\"" << color::reset << ", line " <<
+                color::boldBlue
+                << le
+                .line <<
+                color::reset << '\n';
+            std::cerr << color::boldRed << "SyntaxError: " << color::reset << le.what() << "\n";
+            return 1;
+        }
+        catch (const ParserError& pe)
+        {
+            std::cerr << "File " << color::magenta << "\"" << ctx.currentFile << "\"" << color::reset << ", line " <<
+                color::boldBlue
+                << pe
+                .line <<
+                color::reset << '\n';
+            std::cerr << color::boldRed << "SyntaxError: " << color::reset << pe.what() << "\n";
+            return 2;
+        }
+        catch (const RuntimeError& re)
+        {
+            printRuntimeError(re, ctx.currentFile);
+            return 3;
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << "File " << color::magenta << "\"" << ctx.currentFile << "\"" << color::reset << ", line " <<
+                color::boldBlue
+                << 0 <<
+                color::reset << '\n';
+            std::cerr << "Line " << 0 << " error: " << e.what() << "\n";
+
+            if constexpr (DEBUG_ENV);
+            // env.debugEnvPrint();
+            return 4;
+        }
+    }
+    else
+    {
+        vector<unique_ptr<StatementNode>> nodes;
+
+        cout << "Welcome to Laven v" << LANGUAGE_VERSION << "\n";
+        while (true)
+        {
+            cout << color::magenta << ">>> " << color::reset;
+            try
             {
-                cout << color::magenta << ">>> " << color::reset;
-                nodes.push_back(parseStatement(ts));
-                if (auto [hasValue, value] = nodes.back()->evaluateNode(env); hasValue)
+                if (string input = readREPLinput(); !input.empty())
                 {
-                    printRuntimeValue(value);
-                    cout << "\n";
+                    std::istringstream sis{input};
+
+                    TokenStream ts{sis};
+                    nodes.push_back(parseStatement(ts));
+                    if (auto [hasValue, value] = nodes.back()->evaluateNode(ctx); hasValue)
+                    {
+                        if (value.isNull())
+                            cout << color::black;
+                        else if (value.isCallable())
+                            cout << color::blue;
+                        else cout << color::yellow;
+                        if (value.isString())
+                        {
+                            cout << "'";
+                            printRuntimeValue(value);
+                            cout << "'";
+                        }
+                        else printRuntimeValue(value);
+                        cout << "\n";
+                        cout << color::reset;
+                    }
                 }
             }
+            catch (const RuntimeError& re)
+            {
+                printRuntimeError(re, "repl");
+            }
+            catch (const LexerError& le)
+            {
+                std::cerr << color::boldRed << "SyntaxError: " << color::reset << le.what() << "\n";
+            }
+            catch (const ParserError& pe)
+            {
+                std::cerr << color::boldRed << pe.getCatStr() << ": " << color::reset << pe.what() << "\n";
+            }
+            catch (Help)
+            {
+                cout << "Help:\n";
+            }
+            catch (Exit)
+            {
+                return 0;
+            }
+            catch (const std::exception& e)
+            {
+                std::cerr << "Error: " << e.what() << "\n";
+            }
         }
-        return 0;
-    }
-    catch (const LexerError& le)
-    {
-        std::cerr << "File " << color::magenta << "\"" << file << "\"" << color::reset << ", line " << color::boldBlue
-            << le
-            .line <<
-            color::reset << '\n';
-        std::cerr << color::boldRed << "SyntaxError: " << color::reset << le.what() << "\n";
-        return 1;
-    }
-    catch (const ParserError& pe)
-    {
-        std::cerr << "File " << color::magenta << "\"" << file << "\"" << color::reset << ", line " << color::boldBlue
-            << pe
-            .line <<
-            color::reset << '\n';
-        std::cerr << color::boldRed << "SyntaxError: " << color::reset << pe.what() << "\n";
-        return 2;
-    }
-    catch (const RuntimeError& re)
-    {
-        std::cerr << "File " << color::magenta << "\"" << file << "\"" << color::reset << ", line " << color::boldBlue
-            << re.diagnostic.currentLine << color::reset << '\n';
-        std::cerr << color::boldRed << getErrorCategoryString(re.diagnostic.category) << ": " << color::reset;
-
-        switch (re.diagnostic.kind)
-        {
-        case ErrorKind::VariableUndefined:
-        case ErrorKind::FunctionUndefined:
-            std::cerr << "name '" << color::boldWhite << re.diagnostic.identifier << color::reset << "'" <<
-                " is not defined"
-                << "\n";
-            break;
-        case ErrorKind::InvalidIndexType:
-            std::cerr << "array indices must be " << color::boldWhite << re.diagnostic.primary << color::reset <<
-                ", not " << color::boldWhite << re.diagnostic.secondary << color::reset << "\n";
-            break;
-        case ErrorKind::UnsupportedOperation:
-            std::cerr << "unsupported operand type(s) for "
-                << color::boldWhite << re.diagnostic.identifier << color::reset << ": '" << color::boldGreen << re.
-                diagnostic.primary << color::reset << "' and '"
-                << color::boldBlue << re.diagnostic.secondary << color::reset << "'\n";
-            break;
-        case ErrorKind::NotSubscriptable:
-            std::cerr << "'" << color::boldWhite << re.diagnostic.primary << color::reset <<
-                "' object is not subscriptable\n";
-            break;
-        case ErrorKind::NotCallable:
-            std::cerr << "'" << color::boldWhite << re.diagnostic.primary << color::reset <<
-                "' object is not callable\n";
-            break;
-        case ErrorKind::TooManyArguments:
-            std::cerr << "too many arguments to function '" << color::boldGreen << re.diagnostic.identifier <<
-                color::reset <<
-                "()' expected " << color::boldBlue
-                << re.diagnostic.expected << color::reset << " have " << color::boldRed << re.diagnostic.actual <<
-                color::reset << '\n';
-            break;
-        case ErrorKind::TooFewArguments:
-            std::cerr << "too few arguments to function '" << color::boldGreen << re.diagnostic.identifier <<
-                color::reset <<
-                "()' expected " << color::boldBlue
-                << re.diagnostic.expected << color::reset << " have " << color::boldRed << re.diagnostic.actual <<
-                color::reset << '\n';
-            break;
-        case ErrorKind::IndexOutOfBounds:
-            std::cerr << re.diagnostic.primary << " index is out of range\n";
-            break;
-        case ErrorKind::DivisionByZero:
-            std::cerr << "division by zero\n";
-            break;
-        case ErrorKind::VariableRedeclaration:
-            std::cerr << "redeclaration of '" << color::boldWhite << re.diagnostic.identifier << color::reset << "'\n";
-            std::cerr << color::boldCyan << "Note: " << color::reset << "'" << color::boldWhite << re.diagnostic.
-                identifier << color::reset <<
-                "' previously declared on line " << color::boldBlue << re.diagnostic.previousLine << color::reset <<
-                "\n";
-            break;
-        case ErrorKind::FunctionRedeclaration:
-            std::cerr << "redefinition of '" << color::boldGreen << re.diagnostic.identifier << color::reset << "()'\n";
-            break;
-        case ErrorKind::MaxRecursionLimit:
-            std::cerr << "maximum recursion limit reached\n";
-            break;
-        }
-
-        return 3;
-    }
-    catch (const std::exception& e)
-    {
-        std::cerr << "File " << color::magenta << "\"" << file << "\"" << color::reset << ", line " << color::boldBlue
-            << 0 <<
-            color::reset << '\n';
-        std::cerr << "Line " << 0 << " error: " << e.what() << "\n";
-
-        if constexpr (DEBUG_ENV);
-        // env.debugEnvPrint();
-        return 4;
     }
 }

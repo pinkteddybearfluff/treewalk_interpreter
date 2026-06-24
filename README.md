@@ -1,4 +1,4 @@
-# Laven Language (0.13.2)
+# Laven Language (0.16.0)
 
 A dynamically typed interpreted programming language.
 Current version works on tree-walk interpreter, but later versions will be interpreted by VM.
@@ -8,6 +8,7 @@ Current version works on tree-walk interpreter, but later versions will be inter
 - Variables
 - Functions
 - Arrays
+- Closures
 
 ## Build
 
@@ -21,14 +22,14 @@ cd ./build
 Check Version via interpreter:
 
 ```BASH
-interpreter --version \\prints 0.15.0
-interpreter -v \\prints 0.15.0
+interpreter --version \\prints 0.16.0
+interpreter -v \\prints 0.16.0
 ```
 
 Check Version in language.s
 
 ```laven
-println(__VERSION__);  \\prints 0.15.0
+println(__VERSION__);  \\prints 0.16.0
 ```
 
 ## Example

@@ -1,5 +1,4 @@
 fn max(a,b){
-    println("max called");
     if (a>b) return a;
     return b;
 }
@@ -8,6 +7,7 @@ fn min(a,b){
     if (a>b) return b;
     return a;
 }
+
 
 fn clamp(x, low, high)
 {
@@ -22,4 +22,7 @@ fn avg(...args){
     return sum/len;
 }
 
+fn hello(){
+    println("konichiwa");
+}
 

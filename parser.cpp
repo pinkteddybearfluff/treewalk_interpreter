@@ -48,7 +48,9 @@ bool match(TokenType tkType, TokenStream& ts)
 Token consume(TokenType tkType, string msg, TokenStream& ts)
 {
     if (!check(tkType, ts))
-        throw ParserError(msg, ts.getLineNo());
+    {
+        throw ParserError(msg, ParserError::SyntaxError, ts.getPrevious().line);
+    }
     return ts.getNextToken();
 }
 
@@ -88,7 +90,8 @@ unique_ptr<StatementNode> parseStatement(TokenStream& ts)
 {
     string parserName = "parseStatement";
     if constexpr (DEBUG_PARSER) debugEnter(parserName);
-
+    if (check(TokenType::End, ts))
+        throw ParserError("unexpected EOF", ParserError::SyntaxError, ts.getLineNo());
     if (check(TokenType::Semicolon, ts))
     {
         match(TokenType::Semicolon, ts);
@@ -98,12 +101,18 @@ unique_ptr<StatementNode> parseStatement(TokenStream& ts)
     }
 
     if (check(TokenType::Assign, ts))
-        throw ParserError("'=': expected an l-value for left operand", ts.getLineNo());
+        throw ParserError("'=': expected an lvalue for left operand", ParserError::SyntaxError, ts.getLineNo());
 
     if (check(TokenType::Let, ts))
     {
         unique_ptr<StatementNode> stmt = parseDeclaration(ts);
         consume(TokenType::Semicolon, "expected ';' after declaration", ts);
+        if constexpr (DEBUG_PARSER) debugExit(parserName);
+        return stmt;
+    }
+    if (check(TokenType::Import, ts))
+    {
+        unique_ptr<StatementNode> stmt = parseImportStatement(ts);
         if constexpr (DEBUG_PARSER) debugExit(parserName);
         return stmt;
     }
@@ -133,7 +142,7 @@ unique_ptr<StatementNode> parseStatement(TokenStream& ts)
             --loopLevel;
             return make_unique<BreakNode>();
         }
-        throw ParserError("break statement not within a loop", ts.getLineNo());
+        throw ParserError("break statement not within a loop", ParserError::SemanticError, ts.getLineNo());
     }
     if (check(TokenType::Continue, ts))
     {
@@ -144,7 +153,7 @@ unique_ptr<StatementNode> parseStatement(TokenStream& ts)
             if constexpr (DEBUG_PARSER) debugExit(parserName);
             return make_unique<ContinueNode>();
         }
-        throw ParserError("continue statement not within a loop", ts.getLineNo());
+        throw ParserError("continue statement not within a loop", ParserError::SemanticError, ts.getLineNo());
     }
     if (check(TokenType::OpenBrace, ts))
     {
@@ -167,38 +176,72 @@ unique_ptr<StatementNode> parseStatement(TokenStream& ts)
             if constexpr (DEBUG_PARSER) debugExit(parserName);
             return make_unique<ReturnNode>(std::move(returnNode));
         }
-        throw ParserError("return statement not within a function", ts.getLineNo());
+        throw ParserError("return statement not within a function", ParserError::SemanticError, ts.getLineNo());
     }
 
     unique_ptr<StatementNode> expressionNode = parseExpressionStatement(ts);
-    consume(TokenType::Semicolon, "expected ';' after statement" + std::to_string(ts.getLineNo()), ts);
+    consume(TokenType::Semicolon, "expected ';' after expression statement", ts);
     if constexpr (DEBUG_PARSER) debugExit(parserName);
     return expressionNode;
 }
+
+auto parseImportStatement(TokenStream& ts) -> unique_ptr<StatementNode>
+{
+    string parserName = "parseImport";
+    if constexpr (DEBUG_PARSER) debugEnter(parserName);
+    match(TokenType::Import, ts);
+    if (check(TokenType::String, ts))
+    {
+        Token t = consume(TokenType::String, "expected path to file after import", ts);
+        consume(TokenType::As, "expected 'as' after filepath", ts);
+        Token t2 = consume(TokenType::Identifier, "expected alias identifier for module", ts);
+        return make_unique<ImportNode>(std::get<string>(t.literal), t2.name, ts.getLineNo());
+    }
+    if (check(TokenType::Identifier, ts))
+    {
+        Token t = consume(TokenType::Identifier, "expected module", ts);
+        consume(TokenType::As, "expected 'as' after module", ts);
+        Token t2 = consume(TokenType::Identifier, "expected alias identifier for module", ts);
+        return make_unique<ImportNode>(t.name, t2.name, true, ts.getLineNo());
+    }
+}
+
 
 unique_ptr<StatementNode> parseDeclaration(TokenStream& ts)
 {
     string parserName = "parseDeclaration";
     if constexpr (DEBUG_PARSER) debugEnter(parserName);
-
+    unique_ptr<TypeNode> type = nullptr;
     match(TokenType::Let, ts);
     unique_ptr<ExpressionNode> left = parseEquality(ts);
     if (left->isDeclarationTarget())
     {
+        if (match(TokenType::Colon, ts))
+        {
+            type = parseUnionType(ts);
+        }
         if (match(TokenType::Assign, ts))
         {
             unique_ptr<ExpressionNode> expr = parseLogicalOr(ts);
             if constexpr (DEBUG_PARSER) debugExit(parserName);
+            if (type)
+                return make_unique<DeclarationNode>(std::move(left), std::move(expr), std::move(type),
+                                                    ts.getLineNo());
             return make_unique<DeclarationNode>(std::move(left), std::move(expr),
                                                 ts.getLineNo());
         }
         if (!check(TokenType::Semicolon, ts))
-            throw ParserError("expected ';' after declaration", ts.getLineNo());
+            throw ParserError("expected ';' after declaration", ParserError::SyntaxError, ts.getLineNo());
 
         if constexpr (DEBUG_PARSER) debugExit(parserName);
+        if (type)
+        {
+            return make_unique<DeclarationNode>(std::move(left), std::move(type), ts.getLineNo());
+        }
         return make_unique<DeclarationNode>(std::move(left), ts.getLineNo());
     }
-    throw ParserError(std::format("cannot declare to {}", left->description()), ts.getLineNo());
+    throw ParserError(std::format("cannot declare to {}", left->description()), ParserError::SyntaxError,
+                      ts.getLineNo());
 }
 
 unique_ptr<StatementNode> parseExpressionStatement(TokenStream& ts)
@@ -225,7 +268,8 @@ unique_ptr<ExpressionNode> parseAssignment(TokenStream& ts)
             if constexpr (DEBUG_PARSER) debugExit(parserName);
             return make_unique<AssignmentNode>(std::move(lhs), std::move(rhs), ts.getLineNo());
         }
-        throw ParserError(std::format("cannot assign to {}", lhs->description()), ts.getLineNo());
+        throw ParserError(std::format("cannot assign to {}", lhs->description()), ParserError::SyntaxError,
+                          ts.getLineNo());
     }
     if (match(TokenType::PlusEqual, ts))
     {
@@ -278,7 +322,7 @@ unique_ptr<StatementNode> parseIfStatement(TokenStream& ts)
     match(TokenType::If, ts);
     consume(TokenType::OpenParen, "expected '(' after if", ts);
     unique_ptr<ExpressionNode> condition = parseAssignment(ts);
-    consume(TokenType::CloseParen, "expected ')' after condition statement", ts);
+    consume(TokenType::CloseParen, "expected ')' after condition expression", ts);
 
     unique_ptr<StatementNode> thenStatement = parseStatement(ts);
     if (match(TokenType::Else, ts))
@@ -300,7 +344,7 @@ unique_ptr<StatementNode> parseWhileStatement(TokenStream& ts)
     match(TokenType::While, ts);
     consume(TokenType::OpenParen, "expected '(' after while", ts);
     unique_ptr<ExpressionNode> condition = parseAssignment(ts);
-    consume(TokenType::CloseParen, "expected ')' after condition", ts);
+    consume(TokenType::CloseParen, "expected ')' after condition statement", ts);
 
     unique_ptr<StatementNode> statement = parseStatement(ts);
 
@@ -333,7 +377,7 @@ unique_ptr<StatementNode> parseForStatement(TokenStream& ts)
                 return make_unique<ForNode>(std::move(body));
             }
             expr = parseAssignment(ts);
-            consume(TokenType::CloseParen, "expected ')' after for", ts);
+            consume(TokenType::CloseParen, "expected ')' after for '('", ts);
             body = parseStatement(ts);
             --loopLevel;
             if constexpr (DEBUG_PARSER) debugExit(parserName);
@@ -349,7 +393,7 @@ unique_ptr<StatementNode> parseForStatement(TokenStream& ts)
             return make_unique<ForNode>(std::move(body), nullptr, std::move(cond));
         }
         expr = parseAssignment(ts);
-        consume(TokenType::CloseParen, "expected ')' after for", ts);
+        consume(TokenType::CloseParen, "expected ')' after for '('", ts);
         body = parseStatement(ts);
         if constexpr (DEBUG_PARSER) debugExit(parserName);
         --loopLevel;
@@ -358,7 +402,7 @@ unique_ptr<StatementNode> parseForStatement(TokenStream& ts)
     if (match(TokenType::Let, ts))
         init = parseDeclaration(ts);
     else init = parseExpressionStatement(ts);
-    consume(TokenType::Semicolon, "expected semicolon", ts);
+    consume(TokenType::Semicolon, "expected semicolon in for", ts);
     if (match(TokenType::Semicolon, ts))
     {
         if (match(TokenType::CloseParen, ts))
@@ -376,7 +420,7 @@ unique_ptr<StatementNode> parseForStatement(TokenStream& ts)
         return make_unique<ForNode>(std::move(body), std::move(init), nullptr, std::move(expr));
     }
     cond = parseAssignment(ts);
-    consume(TokenType::Semicolon, "expected semicolon", ts);
+    consume(TokenType::Semicolon, "expected semicolon in for", ts);
     if (match(TokenType::CloseParen, ts))
     {
         body = parseStatement(ts);
@@ -404,7 +448,7 @@ unique_ptr<StatementNode> parseBlock(TokenStream& ts)
         statements.push_back(parseStatement(ts));
         if (check(TokenType::CloseBrace, ts)) break;
     }
-    consume(TokenType::CloseBrace, "expected '}' for block", ts);
+    consume(TokenType::CloseBrace, "expected '}' at end of block to match '{'", ts);
     if constexpr (DEBUG_PARSER) debugExit(parserName);
 
     return make_unique<BlockNode>(std::move(statements));
@@ -418,10 +462,12 @@ unique_ptr<StatementNode> parseFunctionDeclaration(TokenStream& ts)
     match(TokenType::Function, ts);
     int funcDeclarationLine = ts.getLineNo();
     Token t = consume(TokenType::Identifier, "expected identifier after fn", ts);
-    consume(TokenType::OpenParen, "expected '(' after function name", ts);
-    vector<string> parameters;
+    unique_ptr<TypeNode> type = nullptr;
+
+    consume(TokenType::OpenParen, "expected '(' after function name for parameters", ts);
+    vector<Param> parameters;
     bool variadic{false};
-    string variadicParamName;
+    Param variadicParam;
 
     if (!match(TokenType::CloseParen, ts))
     {
@@ -430,14 +476,19 @@ unique_ptr<StatementNode> parseFunctionDeclaration(TokenStream& ts)
             if (check(TokenType::Identifier, ts))
             {
                 Token ti = consume(TokenType::Identifier, "expected parameter", ts);
-                parameters.push_back(ti.name);
+                if (match(TokenType::Colon, ts))
+                    parameters.push_back({ti.name, parseUnionType(ts)});
+                else
+                    parameters.push_back({ti.name, nullptr});
             }
             else if (check(TokenType::Ellipsis, ts))
             {
                 match(TokenType::Ellipsis, ts);
-                Token ta = consume(TokenType::Identifier, "expected 'args'", ts);
-                variadicParamName = ta.name;
-                consume(TokenType::CloseParen, "...args cannot be mixed with normal parameters", ts);
+                Token ta = consume(TokenType::Identifier, "expected identifier after '...'", ts);
+                if (match(TokenType::Colon, ts))
+                    variadicParam = {ta.name, parseUnionType(ts)};
+                else variadicParam = {ta.name, nullptr};
+                consume(TokenType::CloseParen, "...args parameter should come after with normal parameters", ts);
                 variadic = true;
                 break;
             }
@@ -448,12 +499,24 @@ unique_ptr<StatementNode> parseFunctionDeclaration(TokenStream& ts)
             match(TokenType::Comma, ts);
         }
     }
+    if (match(TokenType::Arrow, ts))
+    {
+        type = parseUnionType(ts);
+    }
 
     unique_ptr<StatementNode> body = parseBlock(ts);
 
     if constexpr (DEBUG_PARSER) debugExit(parserName);
     --functionLevel;
-    return make_unique<FunctionDeclarationNode>(t.name, parameters, std::move(body), variadic, variadicParamName,
+    if (type)
+    {
+        return make_unique<FunctionDeclarationNode>(t.name, std::move(parameters), std::move(body), variadic,
+                                                    std::move(variadicParam),
+                                                    std::move(type),
+                                                    funcDeclarationLine);
+    }
+    return make_unique<FunctionDeclarationNode>(t.name, std::move(parameters), std::move(body), variadic,
+                                                std::move(variadicParam),
                                                 funcDeclarationLine);
 }
 
@@ -616,33 +679,41 @@ unique_ptr<ExpressionNode> parsePostFix(TokenStream& ts)
     string parserName = "parsePostFix";
     if constexpr (DEBUG_PARSER) debugEnter(parserName);
     auto expr = parsePrimary(ts);
-    while (match(TokenType::OpenBracket, ts))
+    while (check(TokenType::OpenBracket, ts) || check(TokenType::OpenParen, ts) || check(TokenType::Dot, ts))
     {
-        expr = make_unique<IndexNode>(std::move(expr), parseEquality(ts), ts.getLineNo());
-        consume(TokenType::CloseBracket, "expected ']' after index", ts);
-    }
-    while (match(TokenType::OpenParen, ts))
-    {
-        if (match(TokenType::CloseParen, ts))
-            expr = make_unique<FunctionCallNode>(std::move(expr), ts.getLineNo());
-        else
+        if (match(TokenType::OpenBracket, ts))
         {
-            vector<unique_ptr<ExpressionNode>> argumentNodes;
-            while (true)
+            expr = make_unique<IndexNode>(std::move(expr), parseEquality(ts), ts.getLineNo());
+            consume(TokenType::CloseBracket, "expected ']' after index expression", ts);
+        }
+
+        if (match(TokenType::Dot, ts))
+        {
+            expr = make_unique<MemberAccessNode>(std::move(expr), parsePrimary(ts), ts.getLineNo());
+        }
+        if (match(TokenType::OpenParen, ts))
+        {
+            if (match(TokenType::CloseParen, ts))
+                expr = make_unique<FunctionCallNode>(std::move(expr), ts.getLineNo());
+            else
             {
-                argumentNodes.push_back(parseEquality(ts));
-
-                if (match(TokenType::CloseParen, ts))
+                vector<unique_ptr<ExpressionNode>> argumentNodes;
+                while (true)
                 {
-                    expr = make_unique<FunctionCallNode>(std::move(expr),
-                                                         std::move(argumentNodes), ts.getLineNo());
-                    break;
+                    argumentNodes.push_back(parseEquality(ts));
+
+                    if (match(TokenType::CloseParen, ts))
+                    {
+                        expr = make_unique<FunctionCallNode>(std::move(expr),
+                                                             std::move(argumentNodes), ts.getLineNo());
+                        break;
+                    }
+
+                    if (match(TokenType::Comma, ts))
+                    {
+                        continue;
+                    };
                 }
-
-                if (match(TokenType::Comma, ts))
-                {
-                    continue;
-                };
             }
         }
     }
@@ -689,7 +760,8 @@ unique_ptr<ExpressionNode> parsePrimary(TokenStream& ts)
             if (check(TokenType::CloseBracket, ts)) break;
             if (check(TokenType::Comma, ts)) match(TokenType::Comma, ts);
         }
-        consume(TokenType::CloseBracket, "Expected ']'" + string(1, static_cast<char>(ts.getLineNo())), ts);
+        consume(TokenType::CloseBracket, "expected ']' to match '['" + string(1, static_cast<char>(ts.getLineNo())),
+                ts);
 
         if constexpr (DEBUG_PARSER) debugExit(parserName);
         return make_unique<ArrayNode>(std::move(elements), ts.getLineNo());
@@ -698,7 +770,7 @@ unique_ptr<ExpressionNode> parsePrimary(TokenStream& ts)
     {
         unique_ptr<ExpressionNode> node = parseAssignment(ts);
 
-        consume(TokenType::CloseParen, "missing ')'", ts);
+        consume(TokenType::CloseParen, "expected ')' to match '('", ts);
 
         if constexpr (DEBUG_PARSER) debugExit(parserName);
         return node;
@@ -711,6 +783,74 @@ unique_ptr<ExpressionNode> parsePrimary(TokenStream& ts)
     }
 
     // Invalid Operand error
-    throw ParserError("invalid primary" + getStringForType(t.type), ts.getLineNo());
+    throw ParserError("invalid primary" + getStringForType(t.type), ParserError::SyntaxError, ts.getLineNo());
 }
+
+
+auto parseUnionType(TokenStream& ts) -> unique_ptr<TypeNode>
+{
+    vector<unique_ptr<TypeNode>> types;
+    while (true)
+    {
+        // cout << getStringForType(ts.peek().type) << std::endl;
+
+        types.push_back(parsePrimitiveType(ts));
+        // cout << getStringForType(ts.peek().type) << std::endl;
+        if (!match(TokenType::Pipe, ts)) break;
+        // else break;
+    }
+    if (types.size() == 1)
+    {
+        return std::move(types[0]);
+    }
+    return make_unique<UnionType>(std::move(types));
+}
+
+auto parsePrimitiveType(TokenStream& ts) -> unique_ptr<TypeNode>
+{
+    if (check(TokenType::Identifier, ts))
+    {
+        Token t = consume(TokenType::Identifier, "expected type", ts);
+        if (t.name == "number")
+        {
+            return make_unique<PrimitiveType>("number");
+        }
+        if (t.name == "str")
+        {
+            return make_unique<PrimitiveType>("str");
+        }
+        if (t.name == "bool")
+        {
+            return make_unique<PrimitiveType>("bool");
+        }
+        if (t.name == "Array")
+        {
+            consume(TokenType::OpenBracket, "expected '[' after Array type", ts);
+            auto type = parseUnionType(ts);
+            consume(TokenType::CloseBracket, "expected '[' to close ']' after Array type", ts);
+            return make_unique<ArrayType>(std::move(type));
+        }
+        if (t.name == "Tuple")
+        {
+            consume(TokenType::OpenBracket, "expected '[' after Tuple type", ts);
+            vector<unique_ptr<TypeNode>> types;
+            while (true)
+            {
+                types.push_back(parseUnionType(ts));
+                if (check(TokenType::CloseBracket, ts))break;
+                else consume(TokenType::Comma, "expected ',' after type in Tuple", ts);
+            }
+            consume(TokenType::CloseBracket, "expected '[' to close ']' after Tuple type", ts);
+            return make_unique<TupleType>(std::move(types));
+        }
+    }
+    if (check(TokenType::Null, ts))
+    {
+        match(TokenType::Null, ts);
+        return make_unique<PrimitiveType>("null");
+    }
+
+    throw std::runtime_error("Invalid type name");
+}
+
 

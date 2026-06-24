@@ -11,8 +11,16 @@ add_executable(laven
         parser.h
         ast.cpp
         ast.h
-        stacks.cpp
-        stacks.h
+        environment.cpp
+        environment.h
         version.h
         stdlib.cpp
-        stdlib.h)
+        stdlib.h
+        RuntimeValue.cpp
+        RuntimeValue.h
+        RuntimeError.cpp
+        RuntimeError.h
+        utilities.h
+        utilities.cpp
+        secrets.h
+        Random.h)

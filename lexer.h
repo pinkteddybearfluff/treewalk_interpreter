@@ -4,7 +4,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
-#include "stacks.h"
+#include "environment.h"
 
 using std::string;
 using std::vector;
@@ -66,7 +66,12 @@ enum class TokenType
     Not,
     Modulo,
     Ellipsis,
+    Import,
     Dot,
+    As,
+    Colon,
+    Pipe,
+    Arrow
 };
 
 struct Token
@@ -85,14 +90,16 @@ public:
     {
     };
     Token getNextToken();
+    [[nodiscard]] Token getPrevious() const { return previous; }
     Token peek();
     Token peekNext();
     void debugPrintBuffer();
-    int getLineNo() const { return lineNo; };
+    int getLineNo() const { return lineNo; }
 
 private:
     std::istream& is;
     Token buffer[2];
+    Token previous;
     int bufferCount{0};
     int lineNo{1};
     Token readFromStream();

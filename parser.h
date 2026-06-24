@@ -8,12 +8,26 @@
 
 constexpr bool DEBUG_PARSER = false;
 
+
 class ParserError : public std::runtime_error
 {
 public:
-    ParserError(const string& msg, int lineNo) : std::runtime_error{msg}, line{lineNo}
+    enum Category { SyntaxError, SemanticError };
+
+    ParserError(const string& msg, Category category, int lineNo) : std::runtime_error{msg}, cat{category}, line{lineNo}
     {
     };
+
+    string getCatStr() const
+    {
+        switch (cat)
+        {
+        case SyntaxError: return "SyntaxError";
+        case SemanticError: return "SemanticError";
+        }
+    }
+
+    Category cat;
     int line;
 };
 
@@ -28,27 +42,30 @@ void debugPeek(std::string_view parserName, const Token& t);
 void debugNextPeek(std::string_view parserName, const Token& t);
 void debugExit(std::string_view parserName);
 
+auto parseUnionType(TokenStream& ts) -> unique_ptr<TypeNode>;
+auto parsePrimitiveType(TokenStream& ts) -> unique_ptr<TypeNode>;
 
-unique_ptr<StatementNode> parseStatement(TokenStream& ts);
-unique_ptr<StatementNode> parseIfStatement(TokenStream& ts);
-unique_ptr<StatementNode> parseWhileStatement(TokenStream& ts);
-unique_ptr<StatementNode> parseForStatement(TokenStream& ts);
+auto parseStatement(TokenStream& ts) -> unique_ptr<StatementNode>;
+auto parseImportStatement(TokenStream& ts) -> unique_ptr<StatementNode>;
+auto parseIfStatement(TokenStream& ts) -> unique_ptr<StatementNode>;
+auto parseWhileStatement(TokenStream& ts) -> unique_ptr<StatementNode>;
+auto parseForStatement(TokenStream& ts) -> unique_ptr<StatementNode>;
 
-unique_ptr<StatementNode> parseBlock(TokenStream& ts);
-unique_ptr<StatementNode> parseFunctionDeclaration(TokenStream& ts);
-unique_ptr<StatementNode> parseDeclaration(TokenStream& ts);
-unique_ptr<StatementNode> parseExpressionStatement(TokenStream& ts);
+auto parseBlock(TokenStream& ts) -> unique_ptr<StatementNode>;
+auto parseFunctionDeclaration(TokenStream& ts) -> unique_ptr<StatementNode>;
+auto parseDeclaration(TokenStream& ts) -> unique_ptr<StatementNode>;
+auto parseExpressionStatement(TokenStream& ts) -> unique_ptr<StatementNode>;
 
-unique_ptr<ExpressionNode> parseAssignment(TokenStream& ts);
-unique_ptr<ExpressionNode> parseLogicalOr(TokenStream& ts);
-unique_ptr<ExpressionNode> parseLogicalAnd(TokenStream& ts);
-unique_ptr<ExpressionNode> parseEquality(TokenStream& ts);
-unique_ptr<ExpressionNode> parseComparison(TokenStream& ts);
-unique_ptr<ExpressionNode> parseTerm(TokenStream& ts);
-unique_ptr<ExpressionNode> parseFactor(TokenStream& ts);
-unique_ptr<ExpressionNode> parseUnary(TokenStream& ts);
-unique_ptr<ExpressionNode> parsePrimary(TokenStream& ts);
-unique_ptr<ExpressionNode> parsePostFix(TokenStream& ts);
+auto parseAssignment(TokenStream& ts) -> unique_ptr<ExpressionNode>;
+auto parseLogicalOr(TokenStream& ts) -> unique_ptr<ExpressionNode>;
+auto parseLogicalAnd(TokenStream& ts) -> unique_ptr<ExpressionNode>;
+auto parseEquality(TokenStream& ts) -> unique_ptr<ExpressionNode>;
+auto parseComparison(TokenStream& ts) -> unique_ptr<ExpressionNode>;
+auto parseTerm(TokenStream& ts) -> unique_ptr<ExpressionNode>;
+auto parseFactor(TokenStream& ts) -> unique_ptr<ExpressionNode>;
+auto parseUnary(TokenStream& ts) -> unique_ptr<ExpressionNode>;
+auto parsePrimary(TokenStream& ts) -> unique_ptr<ExpressionNode>;
+auto parsePostFix(TokenStream& ts) -> unique_ptr<ExpressionNode>;
 
 
 #endif //INTERPRETER_PARSER_H
