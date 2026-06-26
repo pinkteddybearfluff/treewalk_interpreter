@@ -18,6 +18,7 @@ using std::shared_ptr;
 class RuntimeValue;
 class BlockNode;
 struct Environment;
+struct RuntimeValueHash;
 
 class Module
 {
@@ -100,8 +101,34 @@ struct Uninitialized
 {
 };
 
+struct RuntimeValueHash
+{
+    std::size_t operator()(const RuntimeValue& value) const;
+};
+
+using Map = std::unordered_map<RuntimeValue, RuntimeValue, RuntimeValueHash>;
+
+struct StructType
+{
+    string name;
+    vector<string> fieldNames;
+    std::map<string, std::shared_ptr<FunctionObject>> methods;
+};
+
+struct StructInstance
+{
+    StructType* type;
+    std::map<string, RuntimeValue> fields;
+    bool hasMethod(string mName);
+    shared_ptr<FunctionObject> getMethod(string mName);
+    bool hasMemberField(string mName);
+    RuntimeValue getMemberVal(string mName);
+};
+
 // Runtime value type is decided at run time.
 // Allowing for dynamically type language like usage.
+
+
 class RuntimeValue
 {
 public:
@@ -115,11 +142,13 @@ public:
         Callable,
         Uninitialized,
         Module,
+        Map,
+        StructObj,
     };
 
     using Array = vector<RuntimeValue>;
     using Type = std::variant<double, bool, string, std::monostate, shared_ptr<Array>, shared_ptr<Callable>, shared_ptr<
-                                  Module>, Uninitialized>;
+                                  Module>, shared_ptr<Map>, Uninitialized, shared_ptr<StructInstance>>;
 
     RuntimeValue(Type d) : data{d}
     {
@@ -153,11 +182,19 @@ public:
     {
     }
 
+    RuntimeValue(shared_ptr<Map> mapPtr) : data{mapPtr}
+    {
+    }
+
     RuntimeValue(shared_ptr<Array> arrayPtr) : data{arrayPtr}
     {
     }
 
     RuntimeValue(shared_ptr<Module> modulePtr) : data{modulePtr}
+    {
+    }
+
+    RuntimeValue(shared_ptr<StructInstance> structPtr) : data{structPtr}
     {
     }
 
@@ -197,6 +234,8 @@ public:
 
     [[nodiscard]] bool isModule() const { return std::holds_alternative<shared_ptr<Module>>(data); }
     [[nodiscard]] bool isUninitialized() const { return std::holds_alternative<Uninitialized>(data); }
+    [[nodiscard]] bool isMap() const { return std::holds_alternative<shared_ptr<Map>>(data); }
+    [[nodiscard]] bool isStructObj() const { return std::holds_alternative<shared_ptr<StructInstance>>(data); };
     [[nodiscard]] bool isTruthy() const;
 
     [[nodiscard]] double asNumber() const
@@ -228,6 +267,14 @@ public:
     [[nodiscard]] shared_ptr<Module> asModulePtr() const { return std::get<shared_ptr<Module>>(data); }
     [[nodiscard]] shared_ptr<Module>& getModuleRef() { return std::get<shared_ptr<Module>>(data); }
 
+    [[nodiscard]] shared_ptr<Map> asMapPtr() const { return std::get<shared_ptr<Map>>(data); }
+    [[nodiscard]] shared_ptr<Map>& getMapRef() { return std::get<shared_ptr<Map>>(data); }
+
+    [[nodiscard]] shared_ptr<StructInstance> asStructObjPtr() const
+    {
+        return std::get<shared_ptr<StructInstance>>(data);
+    }
+
     [[nodiscard]] string description() const;
     [[nodiscard]] Kind kind() const;
 
@@ -235,7 +282,10 @@ private:
     Type data;
 };
 
-RuntimeValue add(const RuntimeValue& a, const RuntimeValue& b);
+
+bool operator==(const RuntimeValue& lhs,
+                const RuntimeValue& rhs);
+
 
 class CallDepthGuard
 {
@@ -271,5 +321,6 @@ namespace Operator
 
     RuntimeValue logicalAnd(const RuntimeValue& a, const RuntimeValue& b);
 }
+
 
 #endif //INTERPRETER_RUNTIMEVALUE_H

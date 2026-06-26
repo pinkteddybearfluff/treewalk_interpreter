@@ -1,4 +1,7 @@
 #include "RuntimeValue.h"
+
+#include <ranges>
+
 #include "ast.h"
 #include "environment.h"
 
@@ -15,6 +18,19 @@ RuntimeValue::Kind RuntimeValue::kind() const
     if (isNull()) return Kind::Null;
     if (isCallable()) return Kind::Callable;
     if (isModule()) return Kind::Module;
+    if (isUninitialized()) return Kind::Uninitialized;
+    if (isMap()) return Kind::Map;
+    if (isStructObj()) return Kind::StructObj;
+}
+
+bool operator==(const RuntimeValue& lhs, const RuntimeValue& rhs)
+{
+    if (lhs.isBoolean() && rhs.isBoolean())
+        return lhs.asBoolean() == rhs.asBoolean();
+    if (lhs.isNull() && rhs.isNull()) return true;
+    if (lhs.isString() && rhs.isString()) return lhs.asString() == rhs.asString();
+    if (lhs.isNumber() && rhs.isNumber()) return lhs.asNumber() == rhs.asNumber();
+    return false;
 }
 
 string RuntimeValue::description() const
@@ -33,6 +49,14 @@ string RuntimeValue::description() const
         return "null";
     case Kind::Callable:
         return "function";
+    case Kind::Uninitialized:
+        return "uninitialized";
+    case Kind::Module:
+        return "module";
+    case Kind::Map:
+        return "map";
+    case Kind::StructObj:
+        return "struct";
     }
 }
 
@@ -53,7 +77,8 @@ RuntimeValue FunctionObject::call(const vector<RuntimeValue>& arguments, int lin
                            });
     }
     auto callEnv = std::make_shared<Environment>();
-    callEnv->parent = closure;
+    if (closure)
+        callEnv->parent = closure;
     InterpreterContext ctxNew = {callEnv, {}};
     auto callerGuard = CallDepthGuard(gCallDepth);
     if (gCallDepth >= maxCallDepth)
@@ -117,6 +142,26 @@ void validateArity(string identifier, int expectedArgs, int actualArgs, bool var
     {
         throw ArityDiagnostic{identifier, ErrorKind::TooFewArguments, expectedArgs, actualArgs, variadic};
     }
+}
+
+bool StructInstance::hasMethod(string mName)
+{
+    return type->methods.contains(mName);
+}
+
+shared_ptr<FunctionObject> StructInstance::getMethod(string mName)
+{
+    return type->methods[mName];
+}
+
+bool StructInstance::hasMemberField(string mName)
+{
+    return fields.contains(mName);
+}
+
+RuntimeValue StructInstance::getMemberVal(string mName)
+{
+    return fields[mName];
 }
 
 bool RuntimeValue::isTruthy() const
@@ -191,6 +236,43 @@ void printRuntimeValue(const RuntimeValue& value)
     case RuntimeValue::Kind::Uninitialized:
         std::cout << "Uninitialized";
         break;
+    case RuntimeValue::Kind::Map:
+        {
+            std::cout << "{";
+
+            bool first = true;
+
+            for (const auto& [key, val] : *(value.asMapPtr()))
+            {
+                if (!first)
+                    std::cout << ", ";
+
+                first = false;
+                if (key.isString())std::cout << '"';
+                printRuntimeValue(key);
+                if (key.isString())std::cout << '"';
+                std::cout << ": ";
+                if (val.isString())std::cout << '"';
+                printRuntimeValue(val);
+                if (val.isString())std::cout << '"';
+            }
+            std::cout << "}";
+            break;
+        }
+    case RuntimeValue::Kind::StructObj:
+        {
+            for (const auto& [fieldName, value] : value.asStructObjPtr()->fields)
+            {
+                cout << fieldName << ": ";
+                printRuntimeValue(value);
+                cout << "\n";
+            }
+            for (const auto& name : value.asStructObjPtr()->type->methods | std::views::keys)
+            {
+                cout << name;
+            }
+            break;
+        }
     }
 }
 
@@ -202,6 +284,29 @@ RuntimeValue& Module::getMember(const std::string& memberName)
 const RuntimeValue& Module::getMember(const std::string& memberName) const
 {
     return env->getReference(memberName).value;
+}
+
+std::size_t RuntimeValueHash::operator()(const RuntimeValue& value) const
+{
+    switch (value.kind())
+    {
+    case RuntimeValue::Kind::Number:
+        return std::hash<double>{}(value.asNumber());
+
+    case RuntimeValue::Kind::String:
+        {
+            return std::hash<std::string>{}(value.asString());
+        }
+    case RuntimeValue::Kind::Boolean:
+        return std::hash<bool>{}(value.asBoolean());
+
+    case RuntimeValue::Kind::Null:
+        return 0;
+
+    default:
+        throw std::runtime_error(
+            "value is not hashable");
+    }
 }
 
 namespace Operator

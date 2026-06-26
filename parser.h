@@ -54,6 +54,7 @@ auto parseForStatement(TokenStream& ts) -> unique_ptr<StatementNode>;
 auto parseBlock(TokenStream& ts) -> unique_ptr<StatementNode>;
 auto parseFunctionDeclaration(TokenStream& ts) -> unique_ptr<StatementNode>;
 auto parseDeclaration(TokenStream& ts) -> unique_ptr<StatementNode>;
+auto parseStruct(TokenStream& ts) -> unique_ptr<StatementNode>;
 auto parseExpressionStatement(TokenStream& ts) -> unique_ptr<StatementNode>;
 
 auto parseAssignment(TokenStream& ts) -> unique_ptr<ExpressionNode>;
@@ -65,6 +66,10 @@ auto parseTerm(TokenStream& ts) -> unique_ptr<ExpressionNode>;
 auto parseFactor(TokenStream& ts) -> unique_ptr<ExpressionNode>;
 auto parseUnary(TokenStream& ts) -> unique_ptr<ExpressionNode>;
 auto parsePrimary(TokenStream& ts) -> unique_ptr<ExpressionNode>;
+auto parseMatchPattern(TokenStream& ts) -> unique_ptr<ExpressionNode>;
+auto parseBlockExpression(TokenStream& ts) -> unique_ptr<ExpressionNode>;
+auto parseOrPattern(TokenStream& ts) -> unique_ptr<PatternNode>;
+auto parsePattern(TokenStream& ts) -> unique_ptr<PatternNode>;
 auto parsePostFix(TokenStream& ts) -> unique_ptr<ExpressionNode>;
 
 

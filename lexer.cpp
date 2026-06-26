@@ -75,6 +75,32 @@ string TokenStream::getString()
     return str;
 }
 
+double TokenStream::lexNumber()
+{
+    bool seenDot{false};
+    string bufferN;
+    while (true)
+    {
+        char ch = is.peek();
+        if (isdigit(ch))
+        {
+            ch = is.get();
+            bufferN.push_back(ch);
+        }
+        else if (ch == '.' && !seenDot)
+        {
+            seenDot = true;
+            ch = is.get();
+            if (!isdigit(is.peek()))
+                is.putback(ch);
+            else
+                bufferN.push_back(ch);
+        }
+        else break;
+    }
+    return std::stod(bufferN);
+}
+
 
 Token TokenStream::getNextToken()
 {
@@ -109,8 +135,7 @@ Token TokenStream::readFromStream()
     if (isdigit(ch))
     {
         is.unget();
-        double value;
-        is >> value;
+        double value = lexNumber();
         return Token{.type = TokenType::Number, .literal = value, .line = lineNo};
     }
     if (ch == '/')
@@ -163,6 +188,10 @@ Token TokenStream::readFromStream()
         if (name == "null") return Token{.type = TokenType::Null, .literal = std::monostate{}, .line = lineNo};
         if (name == "import") return Token{.type = TokenType::Import, .line = lineNo};
         if (name == "as") return Token{.type = TokenType::As, .line = lineNo};
+        if (name == "in") return Token{.type = TokenType::In, .line = lineNo};
+        if (name == "match") return Token{.type = TokenType::Match, .line = lineNo};
+        if (name == "yield") return Token{.type = TokenType::Yield, .line = lineNo};
+        if (name == "struct") return Token{.type = TokenType::Struct, .line = lineNo};
 
         return Token{.type = TokenType::Identifier, .name = name, .line = lineNo};
     }
@@ -290,6 +319,11 @@ Token TokenStream::charToToken(int ch)
                 is.get();
                 return Token{.type = TokenType::Equal, .line = lineNo};
             }
+            if (is.peek() == '>')
+            {
+                is.get();
+                return Token{.type = TokenType::FatArrow, .line = lineNo};
+            }
             return Token{.type = TokenType::Assign, .line = lineNo};
         }
     case '<':
@@ -346,7 +380,12 @@ Token TokenStream::charToToken(int ch)
                 is.get();
                 return Token{.type = TokenType::Ellipsis, .line = lineNo};
             }
-            throw LexerError("invalid syntax '..'", getLineNo());
+            if (is.peek() == '=')
+            {
+                is.get();
+                return Token{.type = TokenType::DotDotEqual, .line = lineNo};
+            }
+            return Token{.type = TokenType::DotDot, .line = lineNo};
         }
         return Token{.type = TokenType::Dot, .line = lineNo};
     case ':':
@@ -476,6 +515,18 @@ string getStringForType(TokenType type)
         return "Pipe";
     case TokenType::Arrow:
         return "Arrow";
+    case TokenType::In:
+        return "In";
+    case TokenType::Match:
+        return "Match";
+    case TokenType::FatArrow:
+        return "FatArrow";
+    case TokenType::Yield:
+        return "Yield";
+    case TokenType::DotDot:
+        return "DotDot";
+    case TokenType::DotDotEqual:
+        return "DotDotEqual";
     }
 }
 

@@ -9,12 +9,15 @@ and this project uses a scheme similar to semantic versioning, however it does n
 
 ### Added
 
-- Add methods for arrays and string.
+- Add methods syntax for string and map.
 - Better support/rendering of error messages for SyntaxError and SemanticError.
 - Add REPL for language.
-- Add support for including/importing files and modules.
-- Add support for switch case.
-- Richer standard library for string and math.
+- Add support for switch/match case/pattern matching.
+- Add enumerators
+- add struct like objects.
+- function parameters with default values
+- Maybe algebraic types
+- Maybe add error handling
 
 ### Changed
 

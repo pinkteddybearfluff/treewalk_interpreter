@@ -12,7 +12,8 @@
 #include "lexer.h"
 #include "RuntimeError.h"
 
-constexpr bool DEBUG_AST = false;
+constexpr bool DEBUG_AST = true;
+constexpr bool EVALUATE = true;
 
 using std::unique_ptr;
 using std::make_unique;
@@ -61,7 +62,7 @@ public:
     virtual void format(FormatContext& ctx) const = 0;
     virtual void debugPrint(int indentLevel) const =0;
     virtual ~ExpressionNode() = default;
-    [[nodiscard]] virtual bool isAssignmentTarget() const { return false; };
+    [[nodiscard]] virtual bool isAssignmentTarget() const { return true; };
     [[nodiscard]] virtual bool isDeclarationTarget() const { return false; };
     [[nodiscard]] virtual string description() const { return "Expression"; };
     [[nodiscard]] virtual string getIdentifierName() const { return "has no identifier"; }
@@ -218,6 +219,52 @@ protected:
     int line;
 };
 
+struct Pair
+{
+    unique_ptr<ExpressionNode> first;
+    unique_ptr<ExpressionNode> second;
+};
+
+class MapNode : public ExpressionNode
+{
+public:
+    EvalResult evaluateNode(InterpreterContext& ctx) const override;
+    void debugPrint(int indentLevel) const override;
+    void format(FormatContext& ctx) const override;
+
+    MapNode(vector<Pair> keyValExp, int lineNo) : keyValPairs{std::move(keyValExp)}
+                                                  , line{lineNo}
+    {
+    }
+
+private:
+    vector<Pair> keyValPairs;
+
+protected:
+    int line;
+};
+
+class StructNode : public StatementNode
+{
+public:
+    EvalResult evaluateNode(InterpreterContext& ctx) const override;
+    void debugPrint(int indentLevel) const override;
+    void format(FormatContext& ctx) const override;
+    void registerInEnv(InterpreterContext& ctx) const;
+
+    StructNode(string name, vector<string> fields, vector<unique_ptr<StatementNode>> methodStatement) :
+        typeName(name),
+        fieldNames{fields},
+        methodsStmt{std::move(methodStatement)}
+    {
+    }
+
+private:
+    string typeName;
+    vector<string> fieldNames;
+    vector<unique_ptr<StatementNode>> methodsStmt;
+};
+
 class IndexNode : public ExpressionNode
 {
 public:
@@ -361,6 +408,7 @@ public:
     {
     }
 
+    RuntimeValue& getReference(InterpreterContext& ctx) override;
     RuntimeValue getObjVal(InterpreterContext& ctx) { return obj->evaluateNode(ctx).value; }
 
     string getObjName() const { return obj->getIdentifierName(); }
@@ -374,6 +422,158 @@ protected:
     int line;
 };
 
+class PatternNode
+{
+public:
+    virtual ~PatternNode() = default;
+    virtual string type() const =0;
+    virtual bool matches(const RuntimeValue& value, InterpreterContext& ctx) const =0;
+};
+
+class OrPattern : public PatternNode
+{
+public:
+    string type() const override { return "or"; }
+
+    bool matches(const RuntimeValue& value, InterpreterContext& ctx) const override
+    {
+        for (const auto& pattern : patterns)
+        {
+            if (pattern->matches(value, ctx))return true;
+            return false;
+        }
+    };
+
+    OrPattern(vector<unique_ptr<PatternNode>> pattern_nodes) : patterns{std::move(pattern_nodes)}
+    {
+    };
+
+private:
+    vector<unique_ptr<PatternNode>> patterns;
+};
+
+class LiteralPattern : public PatternNode
+{
+public:
+    bool matches(const RuntimeValue& value, InterpreterContext& ctx) const override
+    {
+        return this->value == value;
+    };
+
+    LiteralPattern(const RuntimeValue& val) : value{val}
+    {
+    };
+    string type() const override { return "literal"; }
+
+private:
+    RuntimeValue value;
+};
+
+class IdentifierPattern : public PatternNode
+{
+public:
+    bool matches(const RuntimeValue& value, InterpreterContext& ctx) const override
+    {
+        return value == ctx.env->getReference(name).value;
+    };
+
+    IdentifierPattern(string name) : name{name}
+    {
+    }
+
+    string type() const override { return "identifier"; }
+
+private:
+    string name;
+};
+
+class RangePattern : public PatternNode
+{
+public:
+    bool matches(const RuntimeValue& value, InterpreterContext& ctx) const override
+    {
+        if (inclusive)
+        {
+            if (Operator::lessEqual(value, end).asBoolean() && Operator::greaterEqual(value, start).asBoolean())
+                return
+                    true;
+            else return false;
+        }
+        if (Operator::less(value, end).asBoolean() && Operator::greaterEqual(value, start).asBoolean())return true;
+
+        return false;
+    }
+
+    string type() const override { return "range"; }
+
+    RangePattern(RuntimeValue start, RuntimeValue end, bool inclusive) : start{std::move(start)}, end{std::move(end)},
+                                                                         inclusive{inclusive}
+    {
+    };
+
+private:
+    RuntimeValue start;
+    RuntimeValue end;
+    bool inclusive;
+};
+
+class WildCardPattern : public PatternNode
+{
+public:
+    bool matches(const RuntimeValue& value, InterpreterContext& ctx) const override { return true; }
+    string type() const override { return "wildcard"; }
+};
+
+struct MatchArm
+{
+    unique_ptr<PatternNode> pattern;
+    unique_ptr<ExpressionNode> expr;
+};
+
+class MatchPatternNode : public ExpressionNode
+{
+public:
+    EvalResult evaluateNode(InterpreterContext& ctx) const override;
+    void debugPrint(int indentLevel) const override;
+    void format(FormatContext& ctx) const override;
+
+    MatchPatternNode(unique_ptr<ExpressionNode> discriminant, vector<MatchArm> armsExpr, int lineNo) :
+        scrutinee{std::move(discriminant)}, armsExpr{std::move(armsExpr)}, line{lineNo}
+    {
+    }
+
+private:
+    unique_ptr<ExpressionNode> scrutinee;
+    vector<MatchArm> armsExpr;
+
+protected:
+    int line;
+};
+
+class YieldSignal
+{
+public:
+    RuntimeValue value;
+};
+
+
+class BlockExpressionNode : public ExpressionNode
+{
+public :
+    EvalResult evaluateNode(InterpreterContext& ctx) const override;
+    void debugPrint(int indentLevel) const override;
+    void format(FormatContext& ctx) const override;
+
+    BlockExpressionNode(vector<unique_ptr<StatementNode>> stmts, unique_ptr<ExpressionNode> result) : statements{
+            std::move(stmts)
+        }, resultExpr{std::move(result)}
+    {
+    }
+
+private:
+    vector<unique_ptr<StatementNode>> statements;
+    unique_ptr<ExpressionNode> resultExpr;
+};
 
 class ExpressionStatementNode : public StatementNode
 {
@@ -497,6 +697,24 @@ private:
     unique_ptr<StatementNode> statement;
 };
 
+class ForEachNode : public StatementNode
+{
+public:
+    void debugPrint(int indentLevel) const override;
+    EvalResult evaluateNode(InterpreterContext& ctx) const override;
+    void format(FormatContext& ctx) const override;
+
+    ForEachNode(vector<string> init, unique_ptr<ExpressionNode> container, unique_ptr<StatementNode> stmt) :
+        identifiers{init}, containerExp{std::move(container)}, statement{std::move(stmt)}
+    {
+    };
+
+private:
+    vector<string> identifiers;
+    unique_ptr<ExpressionNode> containerExp;
+    unique_ptr<StatementNode> statement;
+};
+
 class BreakNode : public StatementNode
 {
 public:
@@ -587,6 +805,7 @@ public:
     void debugPrint(int indentLevel) const override;
     EvalResult evaluateNode(InterpreterContext& ctx) const override;
     void registerInEnv(InterpreterContext& ctx) const;
+    void registerInCustomEnv(std::map<string, shared_ptr<FunctionObject>>& methodEnv);
     int getParametersSize() const { return parameters.size(); };
     bool isVariadic() const { return variadic; };
     Param variadicParam;

@@ -103,7 +103,6 @@ auto main(int argc, char** argv) -> int
             {
                 nodes.push_back(parseStatement(ts));
             }
-
             parseCompleteFlag = std::chrono::high_resolution_clock::now();
             // cout << std::format("<--------Parsing completed-------------> [Time:{}]",
             //                     std::chrono::duration<double>(parseCompleteFlag - start).count()) << '\n';
@@ -114,8 +113,8 @@ auto main(int argc, char** argv) -> int
             if constexpr (DEBUG_AST)
                 program->debugPrint(0);
 
-
-            program->evaluateNode(ctx);
+            if constexpr (EVALUATE)
+                program->evaluateNode(ctx);
             // FormatContext fmtCtx;
             //
             // program->format(fmtCtx);

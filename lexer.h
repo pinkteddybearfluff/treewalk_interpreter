@@ -68,10 +68,17 @@ enum class TokenType
     Ellipsis,
     Import,
     Dot,
+    DotDot,
+    DotDotEqual,
     As,
     Colon,
     Pipe,
-    Arrow
+    Arrow,
+    In,
+    Match,
+    FatArrow,
+    Yield,
+    Struct,
 };
 
 struct Token
@@ -107,6 +114,7 @@ private:
 
     string getVarName();
     string getString();
+    double lexNumber();
     void consumeComments();
     void consumeMLComments();
 };

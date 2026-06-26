@@ -108,6 +108,16 @@ void registerStdLib(Environment& env)
     }, "pop", env);
     registerNativeFunctions([](const std::vector<RuntimeValue>& args)
     {
+        validateArity("insert", 3, args.size(), false);
+        if (args[0].isMap())
+        {
+            args[0].asMapPtr()->insert(std::make_pair(args[1], args[2]));
+            return RuntimeValue();
+        }
+        throw std::runtime_error("invalid operand for insert");
+    }, "insert", env);
+    registerNativeFunctions([](const std::vector<RuntimeValue>& args)
+    {
         validateArity("number", 1, args.size(), false);
         if (args[0].isString())
             return std::stod(args[0].asString());

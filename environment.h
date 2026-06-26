@@ -3,6 +3,7 @@
 
 #include <map>
 #include <memory>
+#include <ranges>
 
 #include "RuntimeValue.h"
 #include "RuntimeError.h"
@@ -33,9 +34,29 @@ struct VariableInfo
 struct Environment
 {
     std::map<string, VariableInfo> variables;
+    std::map<string, std::unique_ptr<StructType>> types;
     shared_ptr<Environment> parent;
     VariableInfo& getReference(const string& identifier);
     void declare(string name, VariableInfo data);
+
+    bool hasType(string name) const
+    {
+        return types.contains(name);
+    };
+
+    StructType* getType(string name)
+    {
+        if (types.contains(name))
+        {
+            std::cout << "in get type\n";
+            for (const auto& name : types[name]->methods | std::views::keys)
+            {
+                std::cout << name << "\n";
+            }
+            return types[name].get();
+        }
+        throw std::runtime_error("no type name found");
+    };
 };
 
 struct ModuleManager

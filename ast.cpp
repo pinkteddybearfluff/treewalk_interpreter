@@ -115,7 +115,7 @@ void NullNode::debugPrint(int indentLevel) const
 
 EvalResult ArrayNode::evaluateNode(InterpreterContext& ctx) const
 {
-    shared_ptr<vector<RuntimeValue>> arrayPtr = std::make_shared<vector<RuntimeValue>>();
+    shared_ptr<RuntimeValue::Array> arrayPtr = std::make_shared<vector<RuntimeValue>>();
 
     for (int i = 0; i < value.size(); ++i)
     {
@@ -132,15 +132,73 @@ void ArrayNode::debugPrint(int indentLevel) const
     cout << string(indentLevel * IndentSize, ' ') << "]\n";
 }
 
+EvalResult MapNode::evaluateNode(InterpreterContext& ctx) const
+{
+    auto map = std::make_shared<Map>();
+    for (const auto& pairEx : keyValPairs)
+    {
+        auto [itr,inserted] = map->emplace(std::make_pair(pairEx.first->evaluateNode(ctx).value,
+                                                          pairEx.second->evaluateNode(ctx).value));
+
+        if (!inserted)
+            throw std::runtime_error("Duplicate key found in map");
+    }
+    return {true, map};
+}
+
+void MapNode::debugPrint(int indentLevel) const
+{
+    cout << string(indentLevel * IndentSize, ' ') << "Map{\n";
+    for (const auto& pair : keyValPairs)
+    {
+        pair.first->debugPrint(indentLevel + 1);
+        pair.second->debugPrint(indentLevel + 1);
+    }
+    cout << string(indentLevel * IndentSize, ' ') << "}\n";
+}
+
+void StructNode::registerInEnv(InterpreterContext& ctx) const
+{
+    std::map<string, shared_ptr<FunctionObject>> methods;
+    for (auto& func : methodsStmt)
+    {
+        dynamic_cast<FunctionDeclarationNode*>(func.get())->registerInCustomEnv(methods);
+    }
+
+    ctx.env->types.insert(std::make_pair(typeName, make_unique<StructType>(typeName, fieldNames, std::move(methods))));
+}
+
+EvalResult StructNode::evaluateNode(InterpreterContext& ctx) const
+{
+    registerInEnv(ctx);
+    return {false};
+}
+
+void StructNode::debugPrint(int indentLevel) const
+{
+    cout << string(indentLevel * IndentSize, ' ') << "Struct " << typeName << " {\n";
+    for (const auto& fieldName : fieldNames)
+    {
+        cout << string((indentLevel + 1) * IndentSize, ' ') << fieldName << "\n";
+    }
+    cout << string(indentLevel * IndentSize, ' ') << "}\n";
+}
+
 EvalResult IndexNode::evaluateNode(InterpreterContext& ctx) const
 {
     const RuntimeValue& object = operand->evaluateNode(ctx).value;
     const RuntimeValue indexV = indexExp->evaluateNode(ctx).value;
-    if (indexV.isNumber())
+    if (object.isMap())
     {
-        const int index = static_cast<int>(indexV.asNumber());
-        if (object.isArray())
+        if (object.asMapPtr()->contains(indexV))
+            return {true, object.asMapPtr()->at(indexV)};
+        throw std::runtime_error("key not found");
+    }
+    if (object.isArray())
+    {
+        if (indexV.isNumber())
         {
+            const int index = static_cast<int>(indexV.asNumber());
             if (index < object.asArrayPtr()->size())
                 return {true, object.asArrayPtr()->at(index)};
             throw RuntimeError("array index out of range", {
@@ -150,48 +208,60 @@ EvalResult IndexNode::evaluateNode(InterpreterContext& ctx) const
                                    .currentLine = line
                                });
         }
-        if (object.isString())
+        throw RuntimeError("invalid type for array index", {
+                               .category = ErrorCategory::TypeError, .kind = ErrorKind::InvalidIndexType,
+                               .identifier = "array",
+                               .primary = "numbers",
+                               .secondary = indexV.description(), .currentLine = line
+                           });
+    }
+    if (object.isString())
+    {
+        if (indexV.isNumber())
         {
+            const int index = static_cast<int>(indexV.asNumber());
             if (index < object.asString().size())
                 return {true, object.asString().at(index)};
-            throw RuntimeError("array index out of range", {
+            throw RuntimeError("string index out of range", {
                                    .category = ErrorCategory::IndexError,
                                    .kind = ErrorKind::IndexOutOfBounds,
                                    .primary = "string",
                                    .currentLine = line
                                });
         }
-        throw RuntimeError("object is not subscriptable", {
-                               .category = ErrorCategory::TypeError,
-                               .kind = ErrorKind::NotSubscriptable,
-                               .primary = object.description(),
-                               .currentLine = line
+
+        throw RuntimeError("invalid type for string index", {
+                               .category = ErrorCategory::TypeError, .kind = ErrorKind::InvalidIndexType,
+                               .identifier = "string",
+                               .primary = "numbers",
+                               .secondary = indexV.description(), .currentLine = line
                            });
     }
-    throw RuntimeError("invalid type for array index", {
-                           .category = ErrorCategory::TypeError, .kind = ErrorKind::InvalidIndexType,
-                           .primary = "numbers",
-                           .secondary = indexV.description(), .currentLine = line
-                       });
+    throw
+        RuntimeError("object is not subscriptable", {
+                         .category = ErrorCategory::TypeError,
+                         .kind = ErrorKind::NotSubscriptable,
+                         .primary = object.description(),
+                         .currentLine = line
+                     });
 }
 
 RuntimeValue& IndexNode::getReference(InterpreterContext& ctx)
 {
+    const RuntimeValue& object = operand->getReference(ctx);
     const RuntimeValue indexV = indexExp->evaluateNode(ctx).value;
-    if (indexV.isNumber())
+    if (object.isMap())
     {
-        const RuntimeValue& object = operand->getReference(ctx);
-        if (object.isUninitialized())
-            throw RuntimeError("use of uninitialized variable", {
-                                   .category = ErrorCategory::UninitializedError,
-                                   .kind = ErrorKind::UninitializedVariable,
-                                   .identifier = operand->getIdentifierName(), .currentLine = line
-                               });
-
-        const int index = static_cast<int>(indexV.asNumber());
-        if (object.isArray())
+        if (object.asMapPtr()->contains(indexV))
+            return object.asMapPtr()->at(indexV);
+        throw std::runtime_error("key not found");
+    }
+    if (object.isArray())
+    {
+        if (indexV.isNumber())
         {
-            if (index < object.asArrayPtr()->size() && index >= 0)
+            const int index = static_cast<int>(indexV.asNumber());
+            if (index < object.asArrayPtr()->size())
                 return object.asArrayPtr()->at(index);
             throw RuntimeError("array index out of range", {
                                    .category = ErrorCategory::IndexError,
@@ -200,19 +270,19 @@ RuntimeValue& IndexNode::getReference(InterpreterContext& ctx)
                                    .currentLine = line
                                });
         }
-
-        throw RuntimeError("object is not subscriptable", {
-                               .category = ErrorCategory::TypeError,
-                               .kind = ErrorKind::NotSubscriptable,
-                               .primary = indexV.description(),
-                               .currentLine = line
+        throw RuntimeError("invalid type for array index", {
+                               .category = ErrorCategory::TypeError, .kind = ErrorKind::InvalidIndexType,
+                               .primary = "numbers",
+                               .secondary = indexV.description(), .currentLine = line
                            });
     }
-    throw RuntimeError("invalid type for array index", {
-                           .category = ErrorCategory::TypeError, .kind = ErrorKind::InvalidIndexType,
-                           .primary = "numbers",
-                           .secondary = indexV.description(), .currentLine = line
-                       });
+    throw
+        RuntimeError("object is not subscriptable", {
+                         .category = ErrorCategory::TypeError,
+                         .kind = ErrorKind::NotSubscriptable,
+                         .primary = object.description(),
+                         .currentLine = line
+                     });
 }
 
 void IndexNode::debugPrint(int indentLevel) const
@@ -222,6 +292,36 @@ void IndexNode::debugPrint(int indentLevel) const
     cout << string((indentLevel + 1) * IndentSize, ' ') << "[\n";
     indexExp->debugPrint(indentLevel + 1);
     cout << string((indentLevel + 1) * IndentSize, ' ') << "]\n";
+}
+
+RuntimeValue& MemberAccessNode::getReference(InterpreterContext& ctx)
+{
+    RuntimeValue objVal = obj->evaluateNode(ctx).value;
+    if (objVal.isModule())
+    {
+        try
+        {
+            return objVal.asModulePtr()->getMember(member->getIdentifierName());
+        }
+        catch (const UndefinedVariable)
+        {
+            throw RuntimeError("undefined variable", {
+                                   .category = ErrorCategory::AttributeError, .kind = ErrorKind::MissingAttribute,
+                                   .primary = getObjName(),
+                                   .secondary = member->getIdentifierName(),
+                                   .currentLine = line
+                               });
+        }
+    }
+    if (objVal.isStructObj())
+    {
+        return objVal.asStructObjPtr()->fields[member->getIdentifierName()];
+    }
+    throw RuntimeError("type does not support member access", {
+                           .category = ErrorCategory::AttributeError,
+                           .kind = ErrorKind::InvalidReceiver, .identifier = objVal.description(),
+                           .currentLine = line
+                       });
 }
 
 EvalResult MemberAccessNode::evaluateNode(InterpreterContext& ctx) const
@@ -248,6 +348,24 @@ EvalResult MemberAccessNode::evaluateNode(InterpreterContext& ctx) const
         RuntimeValue memberVal = member->evaluateNode(ctx).value;
         if (memberVal.isCallable())
             return {true, memberVal.asCallableObj()};
+    }
+    if (objVal.isStructObj())
+    {
+        if (objVal.asStructObjPtr()->hasMemberField(member->getIdentifierName()))
+            return {true, objVal.asStructObjPtr()->getMemberVal(member->getIdentifierName())};
+
+        if (objVal.asStructObjPtr()->hasMethod(member->getIdentifierName()))
+        {
+            RuntimeValue val = std::static_pointer_cast<Callable>(
+                objVal.asStructObjPtr()->getMethod(member->getIdentifierName()));
+            return {true, val};
+        }
+        throw RuntimeError("undefined variable", {
+                               .category = ErrorCategory::AttributeError, .kind = ErrorKind::MissingAttribute,
+                               .primary = getObjName(),
+                               .secondary = member->getIdentifierName(),
+                               .currentLine = line
+                           });
     }
     throw RuntimeError("type does not support member access", {
                            .category = ErrorCategory::AttributeError,
@@ -497,6 +615,30 @@ void CompoundAssignmentNode::debugPrint(int indentLevel) const
     rvalue->debugPrint(indentLevel + 1);
 }
 
+EvalResult MatchPatternNode::evaluateNode(InterpreterContext& ctx) const
+{
+    RuntimeValue scrutineeVal = scrutinee->evaluateNode(ctx).value;
+    // ExpressionNode* wildCardExpr;
+    for (std::size_t i = 0; i < armsExpr.size(); ++i)
+    {
+        if (armsExpr[i].pattern->matches(scrutineeVal, ctx))
+        {
+            return {true, armsExpr[i].expr->evaluateNode(ctx).value};
+        }
+    }
+    throw std::runtime_error("default case not found");
+}
+
+void MatchPatternNode::debugPrint(int indentLevel) const
+{
+    scrutinee->debugPrint(indentLevel + 1);
+    for (const auto& arm : armsExpr)
+    {
+        // arm.first->debugPrint(indentLevel + 1);
+        arm.expr->debugPrint(indentLevel + 1);
+    }
+}
+
 EvalResult DeclarationNode::evaluateNode(InterpreterContext& ctx) const
 {
     RuntimeValue right = Uninitialized();
@@ -521,7 +663,6 @@ EvalResult DeclarationNode::evaluateNode(InterpreterContext& ctx) const
     }
     return {false};
 }
-
 
 void DeclarationNode::debugPrint(int indentLevel) const
 {
@@ -644,6 +785,88 @@ void ForNode::debugPrint(int indentLevel) const
     statement->debugPrint(indentLevel + 1);
 }
 
+void ForEachNode::debugPrint(int indentLevel) const
+{
+}
+
+EvalResult ForEachNode::evaluateNode(InterpreterContext& ctx) const
+{
+    RuntimeValue container = containerExp->evaluateNode(ctx).value;
+    if (container.isArray())
+    {
+        for (std::size_t i = 0; i < container.asArrayPtr()->size(); ++i)
+        {
+            try
+            {
+                InterpreterContext currentCtx{std::make_shared<Environment>(), ctx.module};
+                currentCtx.env->parent = ctx.env;
+                currentCtx.env->declare(identifiers[0], VariableInfo{container.asArrayPtr()->at(i), 0});
+                if (identifiers.size() == 2)
+                {
+                    currentCtx.env->declare(identifiers[1], VariableInfo{static_cast<int>(i), 0});
+                }
+                statement->evaluateNode(currentCtx);
+            }
+            catch (ContinueSignal)
+            {
+                continue;
+            }
+            catch (BreakSignal)
+            {
+                break;
+            }
+        }
+    }
+    if (container.isString())
+    {
+        for (std::size_t i = 0; i < container.asString().size(); ++i)
+        {
+            try
+            {
+                InterpreterContext currentCtx{std::make_shared<Environment>(), ctx.module};
+                currentCtx.env->parent = ctx.env;
+                currentCtx.env->declare(identifiers[0], VariableInfo{container.asString().at(i), 0});
+                if (identifiers.size() == 2)
+                {
+                    currentCtx.env->declare(identifiers[1], VariableInfo{static_cast<int>(i), 0});
+                }
+                statement->evaluateNode(currentCtx);
+            }
+            catch (ContinueSignal)
+            {
+                continue;
+            }
+            catch (BreakSignal)
+            {
+                break;
+            }
+        }
+    }
+    if (container.isMap())
+    {
+        for (auto [key,value] : *container.asMapPtr())
+        {
+            try
+            {
+                InterpreterContext currentCtx{std::make_shared<Environment>(), ctx.module};
+                currentCtx.env->parent = ctx.env;
+                currentCtx.env->declare(identifiers[0], VariableInfo{key, 0});
+                currentCtx.env->declare(identifiers[1], VariableInfo{value, 0});
+                statement->evaluateNode(currentCtx);
+            }
+            catch (ContinueSignal)
+            {
+                continue;
+            }
+            catch (BreakSignal)
+            {
+                break;
+            }
+        }
+    }
+    return {false};
+}
+
 EvalResult BreakNode::evaluateNode(InterpreterContext& ctx) const
 {
     throw BreakSignal();
@@ -662,6 +885,21 @@ EvalResult ContinueNode::evaluateNode(InterpreterContext& ctx) const
 void ContinueNode::debugPrint(int indentLevel) const
 {
     cout << string(indentLevel * IndentSize, ' ') << "Continue\n";
+}
+
+EvalResult BlockExpressionNode::evaluateNode(InterpreterContext& ctx) const
+{
+    InterpreterContext localCtx = {std::make_shared<Environment>(), ctx.module};
+    localCtx.env->parent = ctx.env;
+    for (auto& statement : statements)
+    {
+        statement->evaluateNode(localCtx);
+    }
+    return resultExpr->evaluateNode(localCtx);
+}
+
+void BlockExpressionNode::debugPrint(int indentLevel) const
+{
 }
 
 EvalResult BlockNode::evaluateNode(InterpreterContext& ctx) const
@@ -685,10 +923,36 @@ void BlockNode::debugPrint(int indentLevel) const
     cout << string(IndentSize * indentLevel, ' ') << "}\n";
 }
 
+RuntimeValue constructor(StructType* type, vector<RuntimeValue> args)
+{
+    map<string, RuntimeValue> fields;
+    if (type->fieldNames.size() == args.size())
+    {
+        for (std::size_t i = 0; i < type->fieldNames.size(); ++i)
+        {
+            fields[type->fieldNames[i]] = args[i];
+        }
+    }
+    cout << "in constructor" << std::endl;
+    for (const auto& name : type->methods | std::views::keys)
+    {
+        cout << name << "\n";
+    }
+    return std::make_shared<StructInstance>(type, fields);
+}
+
 EvalResult FunctionCallNode::evaluateNode(InterpreterContext& ctx) const
 {
+    if (ctx.env->hasType(identifier->getIdentifierName()))
+    {
+        vector<RuntimeValue> args;
+        for (const auto& argument : arguments)
+            args.push_back((argument->evaluateNode(ctx).value));
+        return {true, constructor(ctx.env->getType(identifier->getIdentifierName()), args)};
+    }
+    cout << "First" << std::endl;
     RuntimeValue obj = identifier->evaluateNode(ctx).value;
-
+    cout << "second" << std::endl;
     if (auto obj = dynamic_cast<MemberAccessNode*>(identifier.get()))
     {
         if (obj->getObjVal(ctx).isArray())
@@ -698,6 +962,17 @@ EvalResult FunctionCallNode::evaluateNode(InterpreterContext& ctx) const
             args.push_back(obj->getObjVal(ctx));
             for (const auto& argument : arguments)
                 args.push_back((argument->evaluateNode(ctx).value));
+            return {true, func->call(args, line)};
+        }
+        if (obj->getObjVal(ctx).isStructObj())
+        {
+            cout << "Formation of function" << std::endl;
+            auto func = obj->evaluateNode(ctx).value.asCallableObj();
+            vector<RuntimeValue> args;
+            args.push_back(obj->getObjVal(ctx));
+            for (const auto& argument : arguments)
+                args.push_back((argument->evaluateNode(ctx).value));
+            cout << "Time to call function" << std::endl;
             return {true, func->call(args, line)};
         }
     }
@@ -730,6 +1005,19 @@ void FunctionCallNode::debugPrint(int indentLevel) const
         argument->debugPrint(indentLevel + 1);
     }
     cout << string(indentLevel * IndentSize, ' ') << "}\n";
+}
+
+void FunctionDeclarationNode::registerInCustomEnv(std::map<string, shared_ptr<FunctionObject>>& methodEnv)
+{
+    vector<string> paramsStr;
+    for (const auto& parameter : parameters)
+        paramsStr.push_back(parameter.identifier);
+
+    auto* body_ptr = dynamic_cast<BlockNode*>(body.get());
+    auto fn = std::make_shared<FunctionObject>(
+        identifier, paramsStr, body_ptr, nullptr, variadic,
+        variadicParam.identifier, line);
+    methodEnv.insert(std::make_pair(identifier, std::move(fn)));
 }
 
 void FunctionDeclarationNode::registerInEnv(InterpreterContext& ctx) const
@@ -958,6 +1246,29 @@ void ArrayNode::format(FormatContext& ctx) const
     ctx.os << "]";
 }
 
+void MapNode::format(FormatContext& ctx) const
+{
+    ctx.os << "{\n";
+    ctx.indent();
+    for (std::size_t i = 0; i < keyValPairs.size(); ++i)
+    {
+        ctx.writeIndent();
+        keyValPairs[i].first->format(ctx);
+        ctx.os << ": ";
+        keyValPairs[i].second->format(ctx);
+        if (i < keyValPairs.size() - 1)
+            ctx.os << ",\n";
+        else ctx.os << "\n";
+    }
+    ctx.dedent();
+    ctx.writeIndent();
+    ctx.os << "}";
+}
+
+void StructNode::format(FormatContext& ctx) const
+{
+}
+
 void VariableNode::format(FormatContext& ctx) const
 {
     ctx.os << identifierName;
@@ -989,6 +1300,10 @@ void FunctionCallNode::format(FormatContext& ctx) const
             ctx.os << ", ";
     }
     ctx.os << ")";
+}
+
+void MatchPatternNode::format(FormatContext& ctx) const
+{
 }
 
 void UnaryNode::format(FormatContext& ctx) const
@@ -1033,6 +1348,11 @@ void DeclarationNode::format(FormatContext& ctx) const
         rvalue->format(ctx);
     }
 }
+
+void BlockExpressionNode::format(FormatContext& ctx) const
+{
+}
+
 
 void ExpressionStatementNode::format(FormatContext& ctx) const
 {
@@ -1139,6 +1459,10 @@ void ForNode::format(FormatContext& ctx) const
         terminateLine(statement->description(), ctx.os);
         ctx.dedent();
     }
+}
+
+void ForEachNode::format(FormatContext& ctx) const
+{
 }
 
 
@@ -1270,3 +1594,4 @@ void UnionType::format(FormatContext& ctx) const
             ctx.os << " | ";
     }
 }
+

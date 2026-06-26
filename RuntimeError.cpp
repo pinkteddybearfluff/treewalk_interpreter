@@ -17,7 +17,8 @@ void printRuntimeError(const RuntimeError& re, const string& file)
             << "\n";
         break;
     case ErrorKind::InvalidIndexType:
-        std::cerr << "array indices must be " << color::boldWhite << re.diagnostic.primary << color::reset <<
+        std::cerr << re.diagnostic.identifier << " indices must be " << color::boldWhite << re.diagnostic.primary <<
+            color::reset <<
             ", not " << color::boldWhite << re.diagnostic.secondary << color::reset << "\n";
         break;
     case ErrorKind::UnsupportedOperation:
