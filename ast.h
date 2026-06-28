@@ -782,22 +782,21 @@ struct Param
 {
     string identifier;
     unique_ptr<TypeNode> type{nullptr};
+    unique_ptr<ExpressionNode> defaultArg{nullptr};
+    bool isVariadic{false};
 };
 
 class FunctionDeclarationNode : public StatementNode
 {
 public:
-    FunctionDeclarationNode(string fname, vector<Param> para, unique_ptr<StatementNode> b, bool variadic,
-                            Param variadicParam, int lineNo)
-        : identifier{fname}, parameters{std::move(para)}, body{std::move(b)}, variadic{variadic},
-          variadicParam{std::move(variadicParam)}, line{lineNo}
+    FunctionDeclarationNode(string fname, vector<Param> para, unique_ptr<StatementNode> b, int lineNo)
+        : identifier{fname}, parameters{std::move(para)}, body{std::move(b)}, line{lineNo}
     {
     }
 
-    FunctionDeclarationNode(string fname, vector<Param> para, unique_ptr<StatementNode> b, bool variadic,
-                            Param variadicParam, unique_ptr<TypeNode> type, int lineNo)
-        : identifier{fname}, parameters{std::move(para)}, body{std::move(b)}, variadic{variadic},
-          variadicParam{std::move(variadicParam)}, type{std::move(type)}, line{lineNo}
+    FunctionDeclarationNode(string fname, vector<Param> para, unique_ptr<StatementNode> b, unique_ptr<TypeNode> type,
+                            int lineNo)
+        : identifier{fname}, parameters{std::move(para)}, body{std::move(b)}, type{std::move(type)}, line{lineNo}
     {
     }
 
@@ -805,16 +804,13 @@ public:
     void debugPrint(int indentLevel) const override;
     EvalResult evaluateNode(InterpreterContext& ctx) const override;
     void registerInEnv(InterpreterContext& ctx) const;
-    void registerInCustomEnv(std::map<string, shared_ptr<FunctionObject>>& methodEnv);
+    void registerInCustomEnv(std::map<string, shared_ptr<FunctionObject>>& methodEnv, InterpreterContext& ctx);
     int getParametersSize() const { return parameters.size(); };
-    bool isVariadic() const { return variadic; };
-    Param variadicParam;
 
 private:
     string identifier;
     vector<Param> parameters;
     unique_ptr<StatementNode> body;
-    bool variadic{false};
     unique_ptr<TypeNode> type{nullptr};
     int line;
 };

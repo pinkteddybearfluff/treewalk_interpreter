@@ -442,7 +442,7 @@ unique_ptr<StatementNode> parseForStatement(TokenStream& ts)
                 if (match(TokenType::CloseBracket, ts)) break;
             }
             consume(TokenType::In, "expected in", ts);
-            unique_ptr<ExpressionNode> containerExp = parsePrimary(ts);
+            unique_ptr<ExpressionNode> containerExp = parsePostFix(ts);
             consume(TokenType::CloseParen, "expected ')' after for each '('", ts);
             body = parseStatement(ts);
             --loopLevel;
@@ -455,7 +455,7 @@ unique_ptr<StatementNode> parseForStatement(TokenStream& ts)
 
             if (match(TokenType::In, ts))
             {
-                unique_ptr<ExpressionNode> containerExp = parsePrimary(ts);
+                unique_ptr<ExpressionNode> containerExp = parsePostFix(ts);
                 consume(TokenType::CloseParen, "expected ')' after for each '('", ts);
                 body = parseStatement(ts);
                 --loopLevel;
@@ -534,30 +534,37 @@ unique_ptr<StatementNode> parseFunctionDeclaration(TokenStream& ts)
 
     consume(TokenType::OpenParen, "expected '(' after function name for parameters", ts);
     vector<Param> parameters;
-    bool variadic{false};
-    Param variadicParam;
 
     if (!match(TokenType::CloseParen, ts))
     {
         while (true)
         {
+            Param parameter;
             if (check(TokenType::Identifier, ts))
             {
                 Token ti = consume(TokenType::Identifier, "expected parameter", ts);
+                parameter.identifier = ti.name;
                 if (match(TokenType::Colon, ts))
-                    parameters.push_back({ti.name, parseUnionType(ts)});
+                    parameter.type = parseUnionType(ts);
                 else
-                    parameters.push_back({ti.name, nullptr});
+                    parameter.type = nullptr;
+                if (match(TokenType::Assign, ts))
+                    parameter.defaultArg = parseEquality(ts);
+                else
+                    parameter.defaultArg = nullptr;
+                parameters.push_back(std::move(parameter));
             }
             else if (check(TokenType::Ellipsis, ts))
             {
+                parameter.isVariadic = true;
                 match(TokenType::Ellipsis, ts);
-                Token ta = consume(TokenType::Identifier, "expected identifier after '...'", ts);
+                parameter.identifier = consume(TokenType::Identifier, "expected identifier after '...'", ts).name;
                 if (match(TokenType::Colon, ts))
-                    variadicParam = {ta.name, parseUnionType(ts)};
-                else variadicParam = {ta.name, nullptr};
+                    parameter.type = parseUnionType(ts);
+                else parameter.type = nullptr;
                 consume(TokenType::CloseParen, "...args parameter should come after with normal parameters", ts);
-                variadic = true;
+                parameter.defaultArg = make_unique<ArrayNode>();
+                parameters.push_back(std::move(parameter));
                 break;
             }
             if (match(TokenType::CloseParen, ts))
@@ -578,13 +585,11 @@ unique_ptr<StatementNode> parseFunctionDeclaration(TokenStream& ts)
     --functionLevel;
     if (type)
     {
-        return make_unique<FunctionDeclarationNode>(t.name, std::move(parameters), std::move(body), variadic,
-                                                    std::move(variadicParam),
+        return make_unique<FunctionDeclarationNode>(t.name, std::move(parameters), std::move(body),
                                                     std::move(type),
                                                     funcDeclarationLine);
     }
-    return make_unique<FunctionDeclarationNode>(t.name, std::move(parameters), std::move(body), variadic,
-                                                std::move(variadicParam),
+    return make_unique<FunctionDeclarationNode>(t.name, std::move(parameters), std::move(body),
                                                 funcDeclarationLine);
 }
 

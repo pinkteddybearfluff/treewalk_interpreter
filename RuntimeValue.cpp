@@ -1,5 +1,6 @@
 #include "RuntimeValue.h"
 
+#include <complex>
 #include <ranges>
 
 #include "ast.h"
@@ -60,13 +61,31 @@ string RuntimeValue::description() const
     }
 }
 
+RuntimeValue BoundMethod::call(const vector<RuntimeValue>& arguments, int line) const
+{
+    vector<RuntimeValue> args{self};
+    for (const auto& arg : arguments)
+    {
+        args.push_back(arg);
+    }
+    return function->call(args, line);
+}
+
 RuntimeValue FunctionObject::call(const vector<RuntimeValue>& arguments, int line) const
 {
+    int defArgs{0};
+    bool hasDefaultArgs{false};
+    for (const auto& param : parameters)
+    {
+        if (param.defaultVal)
+        {
+            ++defArgs;
+            hasDefaultArgs = true;
+        }
+    }
     try
     {
-        if (variadic)
-            validateArity(f_name, parameters.size() + 1, arguments.size(), variadic);
-        else validateArity(f_name, parameters.size(), arguments.size(), variadic);
+        validateArity(f_name, parameters.size() - defArgs, arguments.size(), hasDefaultArgs);
     }
     catch (const ArityDiagnostic& ad)
     {
@@ -83,26 +102,42 @@ RuntimeValue FunctionObject::call(const vector<RuntimeValue>& arguments, int lin
     auto callerGuard = CallDepthGuard(gCallDepth);
     if (gCallDepth >= maxCallDepth)
         throw MaxRecursion();
-    if (!variadic)
+
+    if (arguments.size() < parameters.size())
     {
-        for (int i = 0; i < parameters.size(); ++i)
+        for (int i = 0; i < arguments.size(); ++i)
         {
-            callEnv->variables.insert({parameters[i], VariableInfo(arguments[i], callLine)});
+            callEnv->variables.insert({parameters[i].name, VariableInfo(arguments[i], callLine)});
+        }
+        for (std::size_t i = arguments.size(); i < parameters.size(); ++i)
+        {
+            callEnv->variables.insert({
+                parameters[i].name, VariableInfo(parameters[i].defaultVal->evaluateNode(ctxNew).value, callLine)
+            });
         }
     }
-    else
+    else // arguments.size() > parameters.size()
     {
-        for (int i = 0; i < parameters.size(); ++i)
+        for (int i = 0; i < parameters.size() - 1; ++i)
         {
-            callEnv->variables.insert({parameters[i], VariableInfo(arguments[i], callLine)});
+            callEnv->variables.insert({parameters[i].name, VariableInfo(arguments[i], callLine)});
         }
-        vector<RuntimeValue> restArgs;
-        for (int i = static_cast<int>(parameters.size()); i < arguments.size(); ++i)
+        if (parameters[parameters.size() - 1].isVariadic)
         {
-            restArgs.push_back(arguments[i]);
+            vector<RuntimeValue> restArgs;
+            for (std::size_t i = parameters.size() - 1; i < arguments.size(); ++i)
+            {
+                restArgs.push_back(arguments[i]);
+            }
+            auto args = std::make_shared<RuntimeValue::Array>(restArgs);
+            callEnv->variables.insert({parameters[parameters.size() - 1].name, VariableInfo(args, callLine)});
         }
-        auto args = std::make_shared<RuntimeValue::Array>(restArgs);
-        callEnv->variables.insert({variadicParamName, VariableInfo(args, callLine)});
+        else
+        {
+            callEnv->variables.insert({
+                parameters[parameters.size() - 1].name, VariableInfo(arguments[parameters.size() - 1], callLine)
+            });
+        }
     }
     try
     {
@@ -195,6 +230,8 @@ bool RuntimeValue::isTruthy() const
     if (isNull())return false;
     if (isUninitialized())
         throw std::runtime_error("Variable is not initialized");
+    if (isStructObj())
+        return true;
     return false;
 }
 
@@ -390,10 +427,10 @@ namespace Operator
             return false;
         }
         if (a.isNull() && (b.isString() || b.isArray() || b.isBoolean() || b.isCallable() || b.isModule() || b.
-            isNumber()))
+            isNumber() || b.isStructObj()))
             return false;
         if (b.isNull() && (a.isString() || a.isArray() || a.isBoolean() || a.isCallable() || a.isModule() || a.
-            isNumber()))
+            isNumber() || b.isStructObj()))
             return false;
         throw UnsupportedOperation();
     }

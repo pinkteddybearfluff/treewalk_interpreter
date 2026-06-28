@@ -162,7 +162,7 @@ void StructNode::registerInEnv(InterpreterContext& ctx) const
     std::map<string, shared_ptr<FunctionObject>> methods;
     for (auto& func : methodsStmt)
     {
-        dynamic_cast<FunctionDeclarationNode*>(func.get())->registerInCustomEnv(methods);
+        dynamic_cast<FunctionDeclarationNode*>(func.get())->registerInCustomEnv(methods, ctx);
     }
 
     ctx.env->types.insert(std::make_pair(typeName, make_unique<StructType>(typeName, fieldNames, std::move(methods))));
@@ -347,7 +347,12 @@ EvalResult MemberAccessNode::evaluateNode(InterpreterContext& ctx) const
     {
         RuntimeValue memberVal = member->evaluateNode(ctx).value;
         if (memberVal.isCallable())
-            return {true, memberVal.asCallableObj()};
+        {
+            return {
+                true,
+                std::static_pointer_cast<Callable>(std::make_shared<BoundMethod>(memberVal.asCallableObj(), objVal))
+            };
+        }
     }
     if (objVal.isStructObj())
     {
@@ -356,8 +361,8 @@ EvalResult MemberAccessNode::evaluateNode(InterpreterContext& ctx) const
 
         if (objVal.asStructObjPtr()->hasMethod(member->getIdentifierName()))
         {
-            RuntimeValue val = std::static_pointer_cast<Callable>(
-                objVal.asStructObjPtr()->getMethod(member->getIdentifierName()));
+            RuntimeValue val = std::static_pointer_cast<Callable>(std::make_shared<BoundMethod>(
+                objVal.asStructObjPtr()->getMethod(member->getIdentifierName()), objVal));
             return {true, val};
         }
         throw RuntimeError("undefined variable", {
@@ -893,6 +898,13 @@ EvalResult BlockExpressionNode::evaluateNode(InterpreterContext& ctx) const
     localCtx.env->parent = ctx.env;
     for (auto& statement : statements)
     {
+        if (auto* fcn = dynamic_cast<FunctionDeclarationNode*>(statement.get()))
+        {
+            fcn->registerInEnv(localCtx);
+        }
+    }
+    for (auto& statement : statements)
+    {
         statement->evaluateNode(localCtx);
     }
     return resultExpr->evaluateNode(localCtx);
@@ -908,6 +920,14 @@ EvalResult BlockNode::evaluateNode(InterpreterContext& ctx) const
     auto currentEnv = std::make_shared<Environment>();
     currentEnv->parent = ctx.env;
     InterpreterContext ctxNew = {currentEnv, ctx.module};
+
+    for (auto& statement : statements)
+    {
+        if (auto* fcn = dynamic_cast<FunctionDeclarationNode*>(statement.get()))
+        {
+            fcn->registerInEnv(ctxNew);
+        }
+    }
     for (auto& statement : statements)
         statement->evaluateNode(ctxNew);
     return {false};
@@ -950,32 +970,7 @@ EvalResult FunctionCallNode::evaluateNode(InterpreterContext& ctx) const
             args.push_back((argument->evaluateNode(ctx).value));
         return {true, constructor(ctx.env->getType(identifier->getIdentifierName()), args)};
     }
-    cout << "First" << std::endl;
     RuntimeValue obj = identifier->evaluateNode(ctx).value;
-    cout << "second" << std::endl;
-    if (auto obj = dynamic_cast<MemberAccessNode*>(identifier.get()))
-    {
-        if (obj->getObjVal(ctx).isArray())
-        {
-            auto func = identifier->evaluateNode(ctx).value.asCallableObj();
-            vector<RuntimeValue> args;
-            args.push_back(obj->getObjVal(ctx));
-            for (const auto& argument : arguments)
-                args.push_back((argument->evaluateNode(ctx).value));
-            return {true, func->call(args, line)};
-        }
-        if (obj->getObjVal(ctx).isStructObj())
-        {
-            cout << "Formation of function" << std::endl;
-            auto func = obj->evaluateNode(ctx).value.asCallableObj();
-            vector<RuntimeValue> args;
-            args.push_back(obj->getObjVal(ctx));
-            for (const auto& argument : arguments)
-                args.push_back((argument->evaluateNode(ctx).value));
-            cout << "Time to call function" << std::endl;
-            return {true, func->call(args, line)};
-        }
-    }
     if (obj.isCallable())
     {
         auto function = obj.asCallableObj();
@@ -985,7 +980,6 @@ EvalResult FunctionCallNode::evaluateNode(InterpreterContext& ctx) const
             args.push_back(argument->evaluateNode(ctx).value);
         return {true, function->call(args, line)};
     }
-
 
     throw RuntimeError("object is not callable", {
                            .category = ErrorCategory::TypeError,
@@ -1007,31 +1001,33 @@ void FunctionCallNode::debugPrint(int indentLevel) const
     cout << string(indentLevel * IndentSize, ' ') << "}\n";
 }
 
-void FunctionDeclarationNode::registerInCustomEnv(std::map<string, shared_ptr<FunctionObject>>& methodEnv)
+void FunctionDeclarationNode::registerInCustomEnv(std::map<string, shared_ptr<FunctionObject>>& methodEnv,
+                                                  InterpreterContext& ctx)
 {
-    vector<string> paramsStr;
+    vector<Parameter> params;
     for (const auto& parameter : parameters)
-        paramsStr.push_back(parameter.identifier);
-
+    {
+        params.emplace_back(parameter.identifier, parameter.defaultArg.get(), parameter.type.get(),
+                            parameter.isVariadic);
+    }
     auto* body_ptr = dynamic_cast<BlockNode*>(body.get());
     auto fn = std::make_shared<FunctionObject>(
-        identifier, paramsStr, body_ptr, nullptr, variadic,
-        variadicParam.identifier, line);
+        identifier, std::move(params), body_ptr, ctx.env, line);
     methodEnv.insert(std::make_pair(identifier, std::move(fn)));
 }
 
 void FunctionDeclarationNode::registerInEnv(InterpreterContext& ctx) const
 {
-    vector<string> paramsStr;
+    vector<Parameter> params;
     for (const auto& parameter : parameters)
-        paramsStr.push_back(parameter.identifier);
+        params.emplace_back(parameter.identifier, parameter.defaultArg.get(), parameter.type.get(),
+                            parameter.isVariadic);
     try
     {
         auto* body_ptr = dynamic_cast<BlockNode*>(body.get());
         auto fn = std::static_pointer_cast<Callable>(
             make_shared<FunctionObject>(
-                identifier, paramsStr, body_ptr, ctx.env, variadic,
-                variadicParam.identifier, line)
+                identifier, std::move(params), body_ptr, ctx.env, line)
         );
         ctx.env->declare(identifier, VariableInfo(fn,
                                                   line
@@ -1063,14 +1059,6 @@ void FunctionDeclarationNode::debugPrint(int indentLevel) const
         if (parameter.type)
             parameter.type->debugPrint(indentLevel + 1);
         cout << " ";
-    }
-    if (variadic)
-    {
-        cout << "..." << variadicParam.identifier;
-        if (variadicParam.type)
-        {
-            variadicParam.type->debugPrint(indentLevel + 1);
-        }
     }
     cout << string(indentLevel * IndentSize, ' ') << ")\n";
     if (type)
@@ -1506,18 +1494,18 @@ void FunctionDeclarationNode::format(FormatContext& ctx) const
             ctx.os << ": ";
             parameters[i].type->format(ctx);
         }
-        if (i < parameters.size() - 1 || variadic)
+        if (i < parameters.size() - 1)
             ctx.os << ", ";
     }
-    if (variadic)
-    {
-        ctx.os << "..." << variadicParam.identifier;
-        if (variadicParam.type)
-        {
-            ctx.os << ": ";
-            variadicParam.type->format(ctx);
-        }
-    }
+    // if (variadic)
+    // {
+    //     ctx.os << "..." << variadicParam.identifier;
+    //     if (variadicParam.type)
+    //     {
+    //         ctx.os << ": ";
+    //         variadicParam.type->format(ctx);
+    //     }
+    // }
     ctx.os << ") ";
     if (type)
     {

@@ -39,24 +39,9 @@ struct Environment
     VariableInfo& getReference(const string& identifier);
     void declare(string name, VariableInfo data);
 
-    bool hasType(string name) const
-    {
-        return types.contains(name);
-    };
+    bool hasType(string name) const;
 
-    StructType* getType(string name)
-    {
-        if (types.contains(name))
-        {
-            std::cout << "in get type\n";
-            for (const auto& name : types[name]->methods | std::views::keys)
-            {
-                std::cout << name << "\n";
-            }
-            return types[name].get();
-        }
-        throw std::runtime_error("no type name found");
-    };
+    StructType* getType(string name);
 };
 
 struct ModuleManager

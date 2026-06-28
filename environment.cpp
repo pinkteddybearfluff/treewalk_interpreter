@@ -28,3 +28,28 @@ void Environment::declare(string name, VariableInfo data)
     else throw Redeclaration();
 }
 
+bool Environment::hasType(string name) const
+{
+    if (types.contains(name))
+    {
+        return true;
+    }
+    if (parent)
+    {
+        return parent->hasType(name);
+    }
+    return false;
+}
+
+StructType* Environment::getType(string name)
+{
+    if (types.contains(name))
+    {
+        return types[name].get();
+    }
+    if (parent)
+    {
+        return parent->getType(name);
+    }
+    throw std::runtime_error("no type name found");
+}

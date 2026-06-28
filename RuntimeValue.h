@@ -19,6 +19,8 @@ class RuntimeValue;
 class BlockNode;
 struct Environment;
 struct RuntimeValueHash;
+class ExpressionNode;
+class TypeNode;
 
 class Module
 {
@@ -45,22 +47,25 @@ struct Callable
     virtual ~Callable() = default;
 };
 
+struct Parameter
+{
+    string name;
+    ExpressionNode* defaultVal;
+    TypeNode* type;
+    bool isVariadic;
+};
+
 struct FunctionObject : public Callable
 {
-    vector<string> parameters;
+    vector<Parameter> parameters;
     const BlockNode* body;
     shared_ptr<Environment> closure;
-    bool variadic;
-    string variadicParamName;
 
-    FunctionObject(string f_name, vector<string> parameters, const BlockNode* body,
-                   shared_ptr<Environment> closure,
-                   bool variadic, string variadicParamName, int line) : parameters{parameters}, body{body},
-                                                                        closure{std::move(closure)},
-                                                                        variadic{variadic},
-                                                                        variadicParamName{variadicParamName},
-                                                                        f_name{f_name},
-                                                                        callLine{line}
+    FunctionObject(string f_name, vector<Parameter> parameters, const BlockNode* body,
+                   shared_ptr<Environment> closure, int line) : parameters{std::move(parameters)}, body{body},
+                                                                closure{std::move(closure)},
+                                                                f_name{f_name},
+                                                                callLine{line}
     {
     }
 
@@ -71,6 +76,7 @@ protected:
     string f_name;
     int callLine;
 };
+
 
 class MaxRecursion
 {
@@ -282,6 +288,22 @@ private:
     Type data;
 };
 
+
+struct BoundMethod : public Callable
+{
+public:
+    RuntimeValue call(const vector<RuntimeValue>& arguments, int line) const override;
+    shared_ptr<Callable> function;
+    RuntimeValue self;
+
+    BoundMethod(shared_ptr<Callable> function, RuntimeValue self) : function{function}, self{self}
+    {
+    }
+
+protected:
+    string f_name;
+    int callLine;
+};
 
 bool operator==(const RuntimeValue& lhs,
                 const RuntimeValue& rhs);
