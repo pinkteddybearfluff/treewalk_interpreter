@@ -79,6 +79,10 @@ enum class TokenType
     FatArrow,
     Yield,
     Struct,
+    Try,
+    Catch,
+    Throw,
+    Enum,
 };
 
 struct Token

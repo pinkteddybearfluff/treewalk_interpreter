@@ -192,7 +192,10 @@ Token TokenStream::readFromStream()
         if (name == "match") return Token{.type = TokenType::Match, .line = lineNo};
         if (name == "yield") return Token{.type = TokenType::Yield, .line = lineNo};
         if (name == "struct") return Token{.type = TokenType::Struct, .line = lineNo};
-
+        if (name == "try") return Token{.type = TokenType::Try, .line = lineNo};
+        if (name == "catch") return Token{.type = TokenType::Catch, .line = lineNo};
+        if (name == "throw") return Token{.type = TokenType::Throw, .line = lineNo};
+        if (name == "enum") return Token{.type = TokenType::Enum, .line = lineNo};
         return Token{.type = TokenType::Identifier, .name = name, .line = lineNo};
     }
     return charToToken(ch);

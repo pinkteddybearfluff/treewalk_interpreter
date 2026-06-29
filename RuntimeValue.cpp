@@ -22,8 +22,12 @@ RuntimeValue::Kind RuntimeValue::kind() const
     if (isUninitialized()) return Kind::Uninitialized;
     if (isMap()) return Kind::Map;
     if (isStructObj()) return Kind::StructObj;
+    if (isEnumObj()) return Kind::EnumObj;
+    if (isEnumVariantReference()) return Kind::EnumVariantReference;
+    if (isTypeReference()) return Kind::TypeReference;
 }
 
+//used for std::unordered_map
 bool operator==(const RuntimeValue& lhs, const RuntimeValue& rhs)
 {
     if (lhs.isBoolean() && rhs.isBoolean())
@@ -58,6 +62,12 @@ string RuntimeValue::description() const
         return "map";
     case Kind::StructObj:
         return "struct";
+    case Kind::EnumObj:
+        return "enum";
+    case Kind::EnumVariantReference:
+        return "enumVariantRef";
+    case Kind::TypeReference:
+        return "typeRef";
     }
 }
 
@@ -83,18 +93,8 @@ RuntimeValue FunctionObject::call(const vector<RuntimeValue>& arguments, int lin
             hasDefaultArgs = true;
         }
     }
-    try
-    {
-        validateArity(f_name, parameters.size() - defArgs, arguments.size(), hasDefaultArgs);
-    }
-    catch (const ArityDiagnostic& ad)
-    {
-        throw RuntimeError("arity error", {
-                               .category = ErrorCategory::ArityError, .kind = ad.kind, .identifier = ad.identifier,
-                               .currentLine = line,
-                               .expected = ad.expected, .actual = ad.actual, .variadic = ad.variadic
-                           });
-    }
+    validateArity(f_name, parameters.size() - defArgs, arguments.size(), hasDefaultArgs);
+
     auto callEnv = std::make_shared<Environment>();
     if (closure)
         callEnv->parent = closure;
@@ -103,40 +103,43 @@ RuntimeValue FunctionObject::call(const vector<RuntimeValue>& arguments, int lin
     if (gCallDepth >= maxCallDepth)
         throw MaxRecursion();
 
-    if (arguments.size() < parameters.size())
+    if (!parameters.empty())
     {
-        for (int i = 0; i < arguments.size(); ++i)
+        if (arguments.size() < parameters.size())
         {
-            callEnv->variables.insert({parameters[i].name, VariableInfo(arguments[i], callLine)});
-        }
-        for (std::size_t i = arguments.size(); i < parameters.size(); ++i)
-        {
-            callEnv->variables.insert({
-                parameters[i].name, VariableInfo(parameters[i].defaultVal->evaluateNode(ctxNew).value, callLine)
-            });
-        }
-    }
-    else // arguments.size() > parameters.size()
-    {
-        for (int i = 0; i < parameters.size() - 1; ++i)
-        {
-            callEnv->variables.insert({parameters[i].name, VariableInfo(arguments[i], callLine)});
-        }
-        if (parameters[parameters.size() - 1].isVariadic)
-        {
-            vector<RuntimeValue> restArgs;
-            for (std::size_t i = parameters.size() - 1; i < arguments.size(); ++i)
+            for (int i = 0; i < arguments.size(); ++i)
             {
-                restArgs.push_back(arguments[i]);
+                callEnv->variables.insert({parameters[i].name, VariableInfo(arguments[i], callLine)});
             }
-            auto args = std::make_shared<RuntimeValue::Array>(restArgs);
-            callEnv->variables.insert({parameters[parameters.size() - 1].name, VariableInfo(args, callLine)});
+            for (std::size_t i = arguments.size(); i < parameters.size(); ++i)
+            {
+                callEnv->variables.insert({
+                    parameters[i].name, VariableInfo(parameters[i].defaultVal->evaluateNode(ctxNew).value, callLine)
+                });
+            }
         }
-        else
+        else // arguments.size() > parameters.size()
         {
-            callEnv->variables.insert({
-                parameters[parameters.size() - 1].name, VariableInfo(arguments[parameters.size() - 1], callLine)
-            });
+            for (int i = 0; i < parameters.size() - 1; ++i)
+            {
+                callEnv->variables.insert({parameters[i].name, VariableInfo(arguments[i], callLine)});
+            }
+            if (parameters[parameters.size() - 1].isVariadic)
+            {
+                vector<RuntimeValue> restArgs;
+                for (std::size_t i = parameters.size() - 1; i < arguments.size(); ++i)
+                {
+                    restArgs.push_back(arguments[i]);
+                }
+                auto args = std::make_shared<RuntimeValue::Array>(restArgs);
+                callEnv->variables.insert({parameters[parameters.size() - 1].name, VariableInfo(args, callLine)});
+            }
+            else
+            {
+                callEnv->variables.insert({
+                    parameters[parameters.size() - 1].name, VariableInfo(arguments[parameters.size() - 1], callLine)
+                });
+            }
         }
     }
     try
@@ -152,19 +155,7 @@ RuntimeValue FunctionObject::call(const vector<RuntimeValue>& arguments, int lin
 
 RuntimeValue NativeFunction::call(const vector<RuntimeValue>& arguments, int line) const
 {
-    try
-    {
-        return fn(arguments);
-    }
-    catch (const ArityDiagnostic& ad)
-    {
-        throw RuntimeError("arrity error", {
-                               .category = ErrorCategory::ArityError,
-                               .kind = ad.kind, .identifier = ad.identifier, .currentLine = line,
-                               .expected = ad.expected, .actual = ad.actual,
-                               .variadic = ad.variadic
-                           });
-    }
+    return fn(arguments);
 }
 
 void validateArity(string identifier, int expectedArgs, int actualArgs, bool variadic)
@@ -231,6 +222,8 @@ bool RuntimeValue::isTruthy() const
     if (isUninitialized())
         throw std::runtime_error("Variable is not initialized");
     if (isStructObj())
+        return true;
+    if (isEnumObj())
         return true;
     return false;
 }
@@ -309,6 +302,41 @@ void printRuntimeValue(const RuntimeValue& value)
                 cout << name;
             }
             break;
+        }
+    case RuntimeValue::Kind::EnumObj:
+        {
+            cout << value.asEnumPtr()->type->typeName << "." << value.asEnumPtr()->type->variants[value.asEnumPtr()->
+                variantIndex].name;
+            if (!value.asEnumPtr()->fields.empty())
+            {
+                cout << "(";
+                for (std::size_t i = 0; i < value.asEnumPtr()->fields.size(); ++i)
+                {
+                    printRuntimeValue(value.asEnumPtr()->fields[i]);
+                    if (i < value.asEnumPtr()->fields.size() - 1)
+                    {
+                        cout << ", ";
+                    }
+                }
+                cout << ")";
+            }
+            break;
+        }
+    case RuntimeValue::Kind::EnumVariantReference:
+        {
+            cout << "<enum constructor " << value.asEnumVariantRef().type->typeName << "." << value.asEnumVariantRef().
+                type->variants[value.asEnumVariantRef().variantIndex].name << ">";
+        }
+    case RuntimeValue::Kind::TypeReference:
+        {
+            if (auto* structType = dynamic_cast<StructType*>(value.asTypeRef().type))
+            {
+                cout << "<struct " << structType->name << ">";
+            }
+            if (auto* enumType = dynamic_cast<EnumType*>(value.asTypeRef().type))
+            {
+                cout << "<enum " << enumType->typeName << ">";
+            }
         }
     }
 }

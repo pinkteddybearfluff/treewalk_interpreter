@@ -16,6 +16,20 @@ VariableInfo& Environment::getReference(const string& identifier)
     throw UndefinedVariable();
 }
 
+bool Environment::hasVariable(string name)
+{
+    const auto& iter = variables.find(name);
+    if (iter != variables.end())
+    {
+        return true;
+    }
+    if (parent)
+    {
+        return parent->hasVariable(name);
+    }
+    return false;
+}
+
 void Environment::declare(string name, VariableInfo data)
 {
     auto iter = variables.find(name);
@@ -41,7 +55,7 @@ bool Environment::hasType(string name) const
     return false;
 }
 
-StructType* Environment::getType(string name)
+Type* Environment::getType(string name)
 {
     if (types.contains(name))
     {

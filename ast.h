@@ -265,6 +265,23 @@ private:
     vector<unique_ptr<StatementNode>> methodsStmt;
 };
 
+class EnumNode : public StatementNode
+{
+public:
+    EvalResult evaluateNode(InterpreterContext& ctx) const override;
+    void debugPrint(int indentLevel) const override;
+    void format(FormatContext& ctx) const override;
+    void registerInEnv(InterpreterContext& ctx) const;
+
+    EnumNode(string type, vector<Variant> fields) : typeName{std::move(type)}, variants{std::move(fields)}
+    {
+    }
+
+private:
+    string typeName;
+    vector<Variant> variants;
+};
+
 class IndexNode : public ExpressionNode
 {
 public:
@@ -847,6 +864,49 @@ public:
     void format(FormatContext& ctx) const override;
     void debugPrint(int indentLevel) const override;
     EvalResult evaluateNode(InterpreterContext& ctx) const override;
+};
+
+class ThrowNode : public StatementNode
+{
+public:
+    void format(FormatContext& ctx) const override;
+    void debugPrint(int indentLevel) const override;
+    EvalResult evaluateNode(InterpreterContext& ctx) const override;
+
+    ThrowNode(unique_ptr<ExpressionNode> expr) : throwValExp{std::move(expr)}
+    {
+    }
+
+private:
+    unique_ptr<ExpressionNode> throwValExp;
+};
+
+struct ThrowSignal
+{
+    RuntimeValue val;
+};
+
+struct CatchClause
+{
+    string name;
+    unique_ptr<StatementNode> blockStatement;
+};
+
+class TryCatch : public StatementNode
+{
+public:
+    void format(FormatContext& ctx) const override;
+    void debugPrint(int indentLevel) const override;
+    EvalResult evaluateNode(InterpreterContext& ctx) const override;
+
+    TryCatch(unique_ptr<StatementNode> tryStmt, vector<CatchClause> catchClauses) : tryStatement{std::move(tryStmt)},
+        catches{std::move(catchClauses)}
+    {
+    }
+
+private:
+    unique_ptr<StatementNode> tryStatement;
+    vector<CatchClause> catches;
 };
 
 class ImportNode : public StatementNode

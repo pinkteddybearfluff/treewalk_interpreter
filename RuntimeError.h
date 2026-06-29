@@ -28,6 +28,7 @@ enum class ErrorKind
     UnsupportedOperation,
     NotCallable,
     NotSubscriptable,
+    NativeFunInvalidOperandType,
 
     //ArityError
     TooFewArguments,
@@ -89,11 +90,14 @@ struct ArityDiagnostic
 class RuntimeError : public std::runtime_error
 {
 public:
-    RuntimeError(const string& msg, Diagnostic diagnostic) : std::runtime_error{msg}, diagnostic{std::move(diagnostic)}
+    RuntimeError(const string& msg, Diagnostic diagnostic, const std::vector<string>& stackTrace) :
+        std::runtime_error{msg},
+        diagnostic{std::move(diagnostic)}, stackTrace{stackTrace}
     {
     };
 
     Diagnostic diagnostic;
+    std::vector<string> stackTrace;
 };
 
 void printRuntimeError(const RuntimeError& re, const string& file);
@@ -116,6 +120,10 @@ class DivisionByZero
 };
 
 class UnintializedVariable
+{
+};
+
+class InvalidType
 {
 };
 #endif //INTERPRETER_RUNTIMEERROR_H

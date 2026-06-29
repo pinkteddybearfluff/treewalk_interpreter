@@ -114,11 +114,22 @@ struct RuntimeValueHash
 
 using Map = std::unordered_map<RuntimeValue, RuntimeValue, RuntimeValueHash>;
 
-struct StructType
+struct Type
+{
+    virtual ~Type() = default;
+};
+
+struct StructType : public Type
 {
     string name;
     vector<string> fieldNames;
     std::map<string, std::shared_ptr<FunctionObject>> methods;
+
+    StructType(string name, vector<string> fieldNames,
+               std::map<string, std::shared_ptr<FunctionObject>> methods) : name{name}, fieldNames{fieldNames},
+                                                                            methods{methods}
+    {
+    }
 };
 
 struct StructInstance
@@ -129,6 +140,40 @@ struct StructInstance
     shared_ptr<FunctionObject> getMethod(string mName);
     bool hasMemberField(string mName);
     RuntimeValue getMemberVal(string mName);
+};
+
+struct Variant
+{
+    string name;
+    vector<string> fields;
+};
+
+struct EnumType : public Type
+{
+    string typeName;
+    vector<Variant> variants;
+
+    EnumType(string typeName, vector<Variant> variants) : typeName{typeName}, variants{variants}
+    {
+    };
+};
+
+struct EnumValue
+{
+    EnumType* type;
+    int variantIndex;
+    vector<RuntimeValue> fields;
+};
+
+struct TypeReference
+{
+    Type* type;
+};
+
+struct EnumVariantReference
+{
+    EnumType* type;
+    std::size_t variantIndex;
 };
 
 // Runtime value type is decided at run time.
@@ -150,11 +195,15 @@ public:
         Module,
         Map,
         StructObj,
+        EnumObj,
+        TypeReference,
+        EnumVariantReference,
     };
 
     using Array = vector<RuntimeValue>;
     using Type = std::variant<double, bool, string, std::monostate, shared_ptr<Array>, shared_ptr<Callable>, shared_ptr<
-                                  Module>, shared_ptr<Map>, Uninitialized, shared_ptr<StructInstance>>;
+                                  Module>, shared_ptr<Map>, Uninitialized, shared_ptr<StructInstance>, shared_ptr<
+                                  EnumValue>, TypeReference, EnumVariantReference>;
 
     RuntimeValue(Type d) : data{d}
     {
@@ -204,7 +253,19 @@ public:
     {
     }
 
+    RuntimeValue(shared_ptr<EnumValue> enumPtr) : data{enumPtr}
+    {
+    }
+
     RuntimeValue() : data{std::monostate{}}
+    {
+    }
+
+    RuntimeValue(TypeReference type) : data{type}
+    {
+    }
+
+    RuntimeValue(EnumVariantReference variantType) : data{variantType}
     {
     }
 
@@ -238,10 +299,42 @@ public:
         return std::holds_alternative<shared_ptr<Callable>>(data);
     }
 
-    [[nodiscard]] bool isModule() const { return std::holds_alternative<shared_ptr<Module>>(data); }
-    [[nodiscard]] bool isUninitialized() const { return std::holds_alternative<Uninitialized>(data); }
-    [[nodiscard]] bool isMap() const { return std::holds_alternative<shared_ptr<Map>>(data); }
-    [[nodiscard]] bool isStructObj() const { return std::holds_alternative<shared_ptr<StructInstance>>(data); };
+    [[nodiscard]] bool isModule() const
+    {
+        return std::holds_alternative<shared_ptr<Module>>(data);
+    }
+
+    [[nodiscard]] bool isUninitialized() const
+    {
+        return std::holds_alternative<Uninitialized>(data);
+    }
+
+    [[nodiscard]] bool isMap() const
+    {
+        return
+            std::holds_alternative<shared_ptr<Map>>(data);
+    }
+
+    [[nodiscard]] bool isStructObj() const
+    {
+        return std::holds_alternative<shared_ptr<StructInstance>>(data);
+    };
+
+    [[nodiscard]] bool isEnumObj() const
+    {
+        return std::holds_alternative<shared_ptr<EnumValue>>(data);
+    }
+
+    [[nodiscard]] bool isTypeReference() const
+    {
+        return std::holds_alternative<TypeReference>(data);
+    }
+
+    [[nodiscard]] bool isEnumVariantReference() const
+    {
+        return std::holds_alternative<EnumVariantReference>(data);
+    }
+
     [[nodiscard]] bool isTruthy() const;
 
     [[nodiscard]] double asNumber() const
@@ -262,6 +355,11 @@ public:
     string& getStringRef() { return std::get<string>(data); }
     [[nodiscard]] bool asBoolean() const { return std::get<bool>(data); }
 
+    [[nodiscard]] shared_ptr<EnumValue> asEnumPtr() const
+    {
+        return std::get<shared_ptr<EnumValue>>(data);
+    }
+
     [[nodiscard]] bool& getBoolRef()
     {
         return std::get<bool>(data);
@@ -279,6 +377,16 @@ public:
     [[nodiscard]] shared_ptr<StructInstance> asStructObjPtr() const
     {
         return std::get<shared_ptr<StructInstance>>(data);
+    }
+
+    [[nodiscard]] TypeReference asTypeRef() const
+    {
+        return std::get<TypeReference>(data);
+    }
+
+    [[nodiscard]] EnumVariantReference asEnumVariantRef() const
+    {
+        return std::get<EnumVariantReference>(data);
     }
 
     [[nodiscard]] string description() const;

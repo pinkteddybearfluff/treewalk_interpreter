@@ -116,9 +116,28 @@ unique_ptr<StatementNode> parseStatement(TokenStream& ts)
         if constexpr (DEBUG_PARSER) debugExit(parserName);
         return stmt;
     }
+    if (check(TokenType::Try, ts))
+    {
+        unique_ptr<StatementNode> stmt = parseTryStatement(ts);
+        if constexpr (DEBUG_PARSER) debugExit(parserName);
+        return stmt;
+    }
+    if (check(TokenType::Throw, ts))
+    {
+        match(TokenType::Throw, ts);
+        auto expr = parseEquality(ts);
+        consume(TokenType::Semicolon, "expected ';' after throw", ts);
+        return make_unique<ThrowNode>(std::move(expr));
+    }
     if (check(TokenType::Struct, ts))
     {
         unique_ptr<StatementNode> stmt = parseStruct(ts);
+        if constexpr (DEBUG_PARSER) debugExit(parserName);
+        return stmt;
+    }
+    if (check(TokenType::Enum, ts))
+    {
+        unique_ptr<StatementNode> stmt = parseEnum(ts);
         if constexpr (DEBUG_PARSER) debugExit(parserName);
         return stmt;
     }
@@ -212,6 +231,20 @@ auto parseImportStatement(TokenStream& ts) -> unique_ptr<StatementNode>
     }
 }
 
+auto parseTryStatement(TokenStream& ts) -> unique_ptr<StatementNode>
+{
+    match(TokenType::Try, ts);
+    auto tryStmt = parseBlock(ts);
+    consume(TokenType::Catch, "expected catch after try", ts);
+    consume(TokenType::OpenParen, "expected '(' after catch", ts);
+    Token t = consume(TokenType::Identifier, "expected identifier in catch", ts);
+    consume(TokenType::CloseParen, "expected ')' for '(' after catch", ts);
+    auto catchStmt = parseBlock(ts);
+    vector<CatchClause> catchClauses;
+    catchClauses.emplace_back(t.name, std::move(catchStmt));
+    return make_unique<TryCatch>(std::move(tryStmt), std::move(catchClauses));
+}
+
 auto parseStruct(TokenStream& ts) -> unique_ptr<StatementNode>
 {
     match(TokenType::Struct, ts);
@@ -237,6 +270,39 @@ auto parseStruct(TokenStream& ts) -> unique_ptr<StatementNode>
         if (match(TokenType::CloseBrace, ts))break;
     }
     return make_unique<StructNode>(std::move(iden), std::move(fieldNames), std::move(methods));
+}
+
+auto parseEnum(TokenStream& ts) -> unique_ptr<StatementNode>
+{
+    match(TokenType::Enum, ts);
+    string iden = consume(TokenType::Identifier, "expected identifier after enum", ts).name;
+    consume(TokenType::OpenBrace, "expected '{' after enum identifier", ts);
+    vector<Variant> variants;
+    while (true)
+    {
+        string fieldName = consume(TokenType::Identifier, "expected identifier", ts).name;
+
+        vector<string> fields;
+        if (match(TokenType::OpenParen, ts))
+        {
+            while (true)
+            {
+                fields.push_back(consume(TokenType::Identifier, "expected identifier", ts).name);
+                if (match(TokenType::Comma, ts)) continue;
+                else if (match(TokenType::CloseParen, ts))break;
+                else throw std::runtime_error("expected ',' or '}'");
+            }
+        }
+
+        variants.emplace_back(fieldName, fields);
+        if (match(TokenType::Comma, ts))
+        {
+            if (match(TokenType::CloseBrace, ts))break;
+            continue;
+        }
+        if (match(TokenType::CloseBrace, ts))break;
+    }
+    return make_unique<EnumNode>(std::move(iden), std::move(variants));
 }
 
 unique_ptr<StatementNode> parseDeclaration(TokenStream& ts)
@@ -531,9 +597,9 @@ unique_ptr<StatementNode> parseFunctionDeclaration(TokenStream& ts)
     int funcDeclarationLine = ts.getLineNo();
     Token t = consume(TokenType::Identifier, "expected identifier after fn", ts);
     unique_ptr<TypeNode> type = nullptr;
-
+    bool defArgsStarted{false};
     consume(TokenType::OpenParen, "expected '(' after function name for parameters", ts);
-    vector<Param> parameters;
+    vector<Param> parameters{};
 
     if (!match(TokenType::CloseParen, ts))
     {
@@ -548,10 +614,23 @@ unique_ptr<StatementNode> parseFunctionDeclaration(TokenStream& ts)
                     parameter.type = parseUnionType(ts);
                 else
                     parameter.type = nullptr;
-                if (match(TokenType::Assign, ts))
-                    parameter.defaultArg = parseEquality(ts);
+                if (!defArgsStarted)
+                {
+                    if (match(TokenType::Assign, ts))
+                    {
+                        parameter.defaultArg = parseEquality(ts);
+                        defArgsStarted = true;
+                    }
+                    else
+                        parameter.defaultArg = nullptr;
+                }
                 else
-                    parameter.defaultArg = nullptr;
+                {
+                    consume(TokenType::Assign,
+                            "missing '='; default value is required for all parameters to the right after one default value",
+                            ts);
+                    parameter.defaultArg = parseEquality(ts);
+                }
                 parameters.push_back(std::move(parameter));
             }
             else if (check(TokenType::Ellipsis, ts))

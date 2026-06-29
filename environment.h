@@ -34,14 +34,15 @@ struct VariableInfo
 struct Environment
 {
     std::map<string, VariableInfo> variables;
-    std::map<string, std::unique_ptr<StructType>> types;
+    std::map<string, std::unique_ptr<Type>> types;
     shared_ptr<Environment> parent;
+
+    bool hasVariable(string name);
     VariableInfo& getReference(const string& identifier);
     void declare(string name, VariableInfo data);
 
     bool hasType(string name) const;
-
-    StructType* getType(string name);
+    Type* getType(string name);
 };
 
 struct ModuleManager

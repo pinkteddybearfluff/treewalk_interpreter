@@ -9,6 +9,7 @@
 using std::cout;
 
 constexpr int IndentSize = 2;
+vector<string> stackTrace{};
 
 void PrimitiveType::debugPrint(int indentLevel) const
 {
@@ -84,7 +85,7 @@ EvalResult UnaryNode::evaluateNode(InterpreterContext& ctx) const
                            .category = ErrorCategory::TypeError,
                            .kind = ErrorKind::OperandTypeMismatch, .identifier = getSymbolForOp(op.type),
                            .primary = value.description(), .currentLine = line
-                       });
+                       }, stackTrace);
 }
 
 void UnaryNode::debugPrint(int indentLevel) const
@@ -181,6 +182,33 @@ void StructNode::debugPrint(int indentLevel) const
     {
         cout << string((indentLevel + 1) * IndentSize, ' ') << fieldName << "\n";
     }
+
+    cout << string(indentLevel * IndentSize, ' ') << "}\n";
+}
+
+void EnumNode::registerInEnv(InterpreterContext& ctx) const
+{
+    ctx.env->types.insert(std::make_pair(typeName, make_unique<EnumType>(typeName, variants)));
+}
+
+EvalResult EnumNode::evaluateNode(InterpreterContext& ctx) const
+{
+    registerInEnv(ctx);
+    return {false};
+}
+
+void EnumNode::debugPrint(int indentLevel) const
+{
+    cout << string(indentLevel * IndentSize, ' ') << "enum " << typeName << "{\n";
+    for (const auto& variant : variants)
+    {
+        cout << string((indentLevel + 1) * IndentSize, ' ') << variant.name << "(\n";
+        for (const auto& field : variant.fields)
+        {
+            cout << string((indentLevel + 2) * IndentSize, ' ') << field << ", ";
+        }
+        cout << ")\n";
+    }
     cout << string(indentLevel * IndentSize, ' ') << "}\n";
 }
 
@@ -206,14 +234,14 @@ EvalResult IndexNode::evaluateNode(InterpreterContext& ctx) const
                                    .kind = ErrorKind::IndexOutOfBounds,
                                    .primary = "array",
                                    .currentLine = line
-                               });
+                               }, stackTrace);
         }
         throw RuntimeError("invalid type for array index", {
                                .category = ErrorCategory::TypeError, .kind = ErrorKind::InvalidIndexType,
                                .identifier = "array",
                                .primary = "numbers",
                                .secondary = indexV.description(), .currentLine = line
-                           });
+                           }, stackTrace);
     }
     if (object.isString())
     {
@@ -227,7 +255,7 @@ EvalResult IndexNode::evaluateNode(InterpreterContext& ctx) const
                                    .kind = ErrorKind::IndexOutOfBounds,
                                    .primary = "string",
                                    .currentLine = line
-                               });
+                               }, stackTrace);
         }
 
         throw RuntimeError("invalid type for string index", {
@@ -235,7 +263,7 @@ EvalResult IndexNode::evaluateNode(InterpreterContext& ctx) const
                                .identifier = "string",
                                .primary = "numbers",
                                .secondary = indexV.description(), .currentLine = line
-                           });
+                           }, stackTrace);
     }
     throw
         RuntimeError("object is not subscriptable", {
@@ -243,7 +271,7 @@ EvalResult IndexNode::evaluateNode(InterpreterContext& ctx) const
                          .kind = ErrorKind::NotSubscriptable,
                          .primary = object.description(),
                          .currentLine = line
-                     });
+                     }, stackTrace);
 }
 
 RuntimeValue& IndexNode::getReference(InterpreterContext& ctx)
@@ -268,13 +296,13 @@ RuntimeValue& IndexNode::getReference(InterpreterContext& ctx)
                                    .kind = ErrorKind::IndexOutOfBounds,
                                    .primary = "array",
                                    .currentLine = line
-                               });
+                               }, stackTrace);
         }
         throw RuntimeError("invalid type for array index", {
                                .category = ErrorCategory::TypeError, .kind = ErrorKind::InvalidIndexType,
                                .primary = "numbers",
                                .secondary = indexV.description(), .currentLine = line
-                           });
+                           }, stackTrace);
     }
     throw
         RuntimeError("object is not subscriptable", {
@@ -282,7 +310,7 @@ RuntimeValue& IndexNode::getReference(InterpreterContext& ctx)
                          .kind = ErrorKind::NotSubscriptable,
                          .primary = object.description(),
                          .currentLine = line
-                     });
+                     }, stackTrace);
 }
 
 void IndexNode::debugPrint(int indentLevel) const
@@ -310,7 +338,7 @@ RuntimeValue& MemberAccessNode::getReference(InterpreterContext& ctx)
                                    .primary = getObjName(),
                                    .secondary = member->getIdentifierName(),
                                    .currentLine = line
-                               });
+                               }, stackTrace);
         }
     }
     if (objVal.isStructObj())
@@ -321,7 +349,7 @@ RuntimeValue& MemberAccessNode::getReference(InterpreterContext& ctx)
                            .category = ErrorCategory::AttributeError,
                            .kind = ErrorKind::InvalidReceiver, .identifier = objVal.description(),
                            .currentLine = line
-                       });
+                       }, stackTrace);
 }
 
 EvalResult MemberAccessNode::evaluateNode(InterpreterContext& ctx) const
@@ -340,7 +368,7 @@ EvalResult MemberAccessNode::evaluateNode(InterpreterContext& ctx) const
                                    .primary = getObjName(),
                                    .secondary = member->getIdentifierName(),
                                    .currentLine = line
-                               });
+                               }, stackTrace);
         }
     }
     if (objVal.isArray())
@@ -352,6 +380,27 @@ EvalResult MemberAccessNode::evaluateNode(InterpreterContext& ctx) const
                 true,
                 std::static_pointer_cast<Callable>(std::make_shared<BoundMethod>(memberVal.asCallableObj(), objVal))
             };
+        }
+    }
+    if (objVal.isTypeReference())
+    {
+        if (auto type = dynamic_cast<EnumType*>(objVal.asTypeRef().type))
+        {
+            string variantName = member->getIdentifierName();
+
+            for (std::size_t i = 0; i < type->variants.size(); ++i)
+            {
+                if (variantName == type->variants[i].name)
+                {
+                    if (type->variants[i].fields.empty())
+                    {
+                        vector<RuntimeValue> args{};
+                        return {true, std::make_shared<EnumValue>(type, i, args)};
+                    }
+                    return {true, EnumVariantReference(type, i)};
+                }
+            }
+            throw std::runtime_error("invalid variant index");
         }
     }
     if (objVal.isStructObj())
@@ -370,13 +419,13 @@ EvalResult MemberAccessNode::evaluateNode(InterpreterContext& ctx) const
                                .primary = getObjName(),
                                .secondary = member->getIdentifierName(),
                                .currentLine = line
-                           });
+                           }, stackTrace);
     }
     throw RuntimeError("type does not support member access", {
                            .category = ErrorCategory::AttributeError,
                            .kind = ErrorKind::InvalidReceiver, .identifier = objVal.description(),
                            .currentLine = line
-                       });
+                       }, stackTrace);
 }
 
 void MemberAccessNode::debugPrint(int indentLevel) const
@@ -433,14 +482,14 @@ EvalResult BinaryNode::evaluateNode(InterpreterContext& ctx) const
                                .identifier = getSymbolForOp(op.type), .primary = lval.description(),
                                .secondary = rval.description(),
                                .currentLine = line
-                           });
+                           }, stackTrace);
     }
     catch (DivisionByZero)
     {
         throw RuntimeError("division by zero", {
                                .category = ErrorCategory::ZeroDivisionError, .kind = ErrorKind::DivisionByZero,
                                .currentLine = line
-                           });
+                           }, stackTrace);
     }
 }
 
@@ -468,13 +517,20 @@ EvalResult VariableNode::evaluateNode(InterpreterContext& ctx) const
 {
     try
     {
-        RuntimeValue val = ctx.env->getReference(identifierName).value;
+        RuntimeValue val;
+        if (ctx.env->hasVariable(identifierName))
+            val = ctx.env->getReference(identifierName).value;
+        else if (ctx.env->hasType(identifierName))
+        {
+            auto value = TypeReference{ctx.env->getType(identifierName)};
+            return {true, value};
+        }
         if (val.isUninitialized())
             throw RuntimeError("use of uninitialized variable", {
                                    .category = ErrorCategory::UninitializedError,
                                    .kind = ErrorKind::UninitializedVariable,
                                    .identifier = getIdentifierName(), .currentLine = line
-                               });
+                               }, stackTrace);
         return {true, val};
     }
     catch (UndefinedVariable)
@@ -482,7 +538,7 @@ EvalResult VariableNode::evaluateNode(InterpreterContext& ctx) const
         throw RuntimeError("undefined variable", {
                                .category = ErrorCategory::NameError, .kind = ErrorKind::VariableUndefined,
                                .identifier = identifierName, .currentLine = line
-                           });
+                           }, stackTrace);
     }
 }
 
@@ -497,7 +553,7 @@ RuntimeValue& VariableNode::getReference(InterpreterContext& ctx)
         throw RuntimeError("undefined variable", {
                                .category = ErrorCategory::NameError, .kind = ErrorKind::VariableUndefined,
                                .identifier = identifierName, .currentLine = line
-                           });
+                           }, stackTrace);
     }
 }
 
@@ -530,7 +586,7 @@ EvalResult CompoundAssignmentNode::evaluateNode(InterpreterContext& ctx) const
                                .category = ErrorCategory::UninitializedError,
                                .kind = ErrorKind::UninitializedVariable,
                                .identifier = lvalue->getIdentifierName(), .currentLine = line
-                           });
+                           }, stackTrace);
     switch (op.type)
     {
     case TokenType::PlusEqual:
@@ -551,7 +607,7 @@ EvalResult CompoundAssignmentNode::evaluateNode(InterpreterContext& ctx) const
                                .identifier = "+", .primary = lhs.description(), .secondary = rhs.description(),
                                .currentLine = line
 
-                           });
+                           }, stackTrace);
         break;
     case TokenType::MinusEqual:
         if (lhs.isNumber() && rhs.isNumber())
@@ -567,7 +623,7 @@ EvalResult CompoundAssignmentNode::evaluateNode(InterpreterContext& ctx) const
                                .identifier = "-", .primary = lhs.description(), .secondary = rhs.description(),
                                .currentLine = line
 
-                           });
+                           }, stackTrace);
         break;
     case TokenType::MultiplyEqual:
         if (lhs.isNumber() && rhs.isNumber())
@@ -582,7 +638,7 @@ EvalResult CompoundAssignmentNode::evaluateNode(InterpreterContext& ctx) const
                                .category = ErrorCategory::TypeError, .kind = ErrorKind::UnsupportedOperation,
                                .identifier = "*", .primary = lhs.description(), .secondary = rhs.description(),
                                .currentLine = line
-                           });
+                           }, stackTrace);
         break;
     case TokenType::DivideEqual:
         if (lhs.isNumber() && rhs.isNumber())
@@ -593,7 +649,7 @@ EvalResult CompoundAssignmentNode::evaluateNode(InterpreterContext& ctx) const
                                    .category = ErrorCategory::ZeroDivisionError,
                                    .kind = ErrorKind::DivisionByZero,
                                    .currentLine = line
-                               });
+                               }, stackTrace);
         }
         if (lhs.isBoolean() && rhs.isBoolean())
         {
@@ -603,12 +659,12 @@ EvalResult CompoundAssignmentNode::evaluateNode(InterpreterContext& ctx) const
                                    .category = ErrorCategory::ZeroDivisionError,
                                    .kind = ErrorKind::DivisionByZero,
                                    .currentLine = line
-                               });
+                               }, stackTrace);
         }
         throw RuntimeError("unsupported operations", {
                                .category = ErrorCategory::TypeError, .kind = ErrorKind::UnsupportedOperation,
                                .identifier = "/", .primary = lhs.description(), .secondary = rhs.description()
-                           });
+                           }, stackTrace);
         break;
     }
 }
@@ -663,7 +719,7 @@ EvalResult DeclarationNode::evaluateNode(InterpreterContext& ctx) const
                                    .identifier = var->getIdentifierName(),
                                    .currentLine = line,
                                    .previousLine = ctx.env->getReference(var->getIdentifierName()).declarationLine
-                               });
+                               }, stackTrace);
         }
     }
     return {false};
@@ -953,32 +1009,65 @@ RuntimeValue constructor(StructType* type, vector<RuntimeValue> args)
             fields[type->fieldNames[i]] = args[i];
         }
     }
-    cout << "in constructor" << std::endl;
-    for (const auto& name : type->methods | std::views::keys)
-    {
-        cout << name << "\n";
-    }
     return std::make_shared<StructInstance>(type, fields);
+}
+
+RuntimeValue constructor(EnumVariantReference typeRef, vector<RuntimeValue> args)
+{
+    return std::make_shared<EnumValue>(typeRef.type, typeRef.variantIndex, args);
 }
 
 EvalResult FunctionCallNode::evaluateNode(InterpreterContext& ctx) const
 {
-    if (ctx.env->hasType(identifier->getIdentifierName()))
-    {
-        vector<RuntimeValue> args;
-        for (const auto& argument : arguments)
-            args.push_back((argument->evaluateNode(ctx).value));
-        return {true, constructor(ctx.env->getType(identifier->getIdentifierName()), args)};
-    }
+    vector<RuntimeValue> args;
+    for (const auto& argument : arguments)
+        args.push_back(argument->evaluateNode(ctx).value);
+
     RuntimeValue obj = identifier->evaluateNode(ctx).value;
+    if (obj.isTypeReference())
+    {
+        if (auto structType = dynamic_cast<StructType*>(obj.asTypeRef().type))
+        {
+            stackTrace.push_back(structType->name);
+            RuntimeValue val = constructor(structType, args);
+            stackTrace.pop_back();
+            return {true, val};
+        }
+    }
+    if (obj.isEnumVariantReference())
+    {
+        if (auto enumVariantType = obj.asEnumVariantRef().type)
+        {
+            cout << "into the constructor we go " << std::endl;
+            stackTrace.push_back(std::format("{}.{}()", enumVariantType->typeName,
+                                             enumVariantType->variants[obj.asEnumVariantRef().variantIndex].name));
+            RuntimeValue val = constructor(obj.asEnumVariantRef(), args);
+            cout << "Out the constructor we come" << std::endl;
+            stackTrace.pop_back();
+            return {true, val};
+        }
+    }
     if (obj.isCallable())
     {
         auto function = obj.asCallableObj();
-        vector<RuntimeValue> args;
 
-        for (const auto& argument : arguments)
-            args.push_back(argument->evaluateNode(ctx).value);
-        return {true, function->call(args, line)};
+        stackTrace.push_back(identifier->getIdentifierName());
+        RuntimeValue result;
+        try
+        {
+            result = function->call(args, line);
+        }
+        catch (const ArityDiagnostic& ad)
+        {
+            throw RuntimeError("arity error", {
+                                   .category = ErrorCategory::ArityError,
+                                   .kind = ad.kind, .identifier = ad.identifier, .currentLine = line,
+                                   .expected = ad.expected, .actual = ad.actual,
+                                   .variadic = ad.variadic
+                               }, stackTrace);
+        }
+        stackTrace.pop_back();
+        return {true, result};
     }
 
     throw RuntimeError("object is not callable", {
@@ -986,7 +1075,7 @@ EvalResult FunctionCallNode::evaluateNode(InterpreterContext& ctx) const
                            .kind = ErrorKind::NotCallable,
                            .primary = identifier->evaluateNode(ctx).value.description(),
                            .currentLine = line,
-                       });
+                       }, stackTrace);
 }
 
 void FunctionCallNode::debugPrint(int indentLevel) const
@@ -1040,7 +1129,7 @@ void FunctionDeclarationNode::registerInEnv(InterpreterContext& ctx) const
                                .kind = ErrorKind::FunctionRedeclaration,
                                .identifier = identifier,
                                .currentLine = line,
-                           });
+                           }, stackTrace);
     }
 }
 
@@ -1114,6 +1203,37 @@ void EmptyNode::debugPrint(int indentLevel) const
     cout << string(indentLevel * IndentSize, ' ') << "EmptyStatement\n";
 }
 
+EvalResult ThrowNode::evaluateNode(InterpreterContext& ctx) const
+{
+    throw ThrowSignal(throwValExp->evaluateNode(ctx).value);
+}
+
+void ThrowNode::debugPrint(int indentLevel) const
+{
+}
+
+EvalResult TryCatch::evaluateNode(InterpreterContext& ctx) const
+{
+    try
+    {
+        InterpreterContext localCtx = InterpreterContext(std::make_shared<Environment>(), ctx.module);
+        localCtx.env->parent = ctx.env;
+        tryStatement->evaluateNode(localCtx);
+    }
+    catch (const ThrowSignal& e)
+    {
+        InterpreterContext localCtx = InterpreterContext(std::make_shared<Environment>(), ctx.module);
+        localCtx.env->parent = ctx.env;
+        localCtx.env->declare(catches[0].name, VariableInfo(e.val, 0));
+        catches[0].blockStatement->evaluateNode(localCtx);
+    }
+    return {false};
+}
+
+void TryCatch::debugPrint(int indentLevel) const
+{
+}
+
 EvalResult ImportNode::evaluateNode(InterpreterContext& ctx) const
 {
     if (isStdLib)
@@ -1132,7 +1252,7 @@ EvalResult ImportNode::evaluateNode(InterpreterContext& ctx) const
                 throw RuntimeError("no stdlib with given module name", {
                                        .category = ErrorCategory::ImportError, .kind = ErrorKind::ModuleNotFound,
                                        .identifier = file, .primary = "std", .currentLine = line
-                                   });
+                                   }, stackTrace);
             }
             moduleCtx.env->parent = ctx.env;
             moduleCtx.workingDir = ctx.workingDir;
@@ -1152,7 +1272,7 @@ EvalResult ImportNode::evaluateNode(InterpreterContext& ctx) const
         throw RuntimeError("module not found at given file path", {
                                .category = ErrorCategory::ImportError, .kind = ErrorKind::ModuleNotFound,
                                .identifier = filePath, .currentLine = line
-                           });
+                           }, stackTrace);
     }
 
     vector<unique_ptr<StatementNode>> nodes;
@@ -1254,6 +1374,10 @@ void MapNode::format(FormatContext& ctx) const
 }
 
 void StructNode::format(FormatContext& ctx) const
+{
+}
+
+void EnumNode::format(FormatContext& ctx) const
 {
 }
 
@@ -1537,6 +1661,14 @@ void ImportNode::format(FormatContext& ctx) const
         ctx.os << "import " << file << " as " << alias;
     else
         ctx.os << "import \"" << file << "\" as " << alias;
+}
+
+void TryCatch::format(FormatContext& ctx) const
+{
+}
+
+void ThrowNode::format(FormatContext& ctx) const
+{
 }
 
 void ProgramNode::format(FormatContext& ctx) const

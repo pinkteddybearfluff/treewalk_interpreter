@@ -46,7 +46,9 @@ auto parseUnionType(TokenStream& ts) -> unique_ptr<TypeNode>;
 auto parsePrimitiveType(TokenStream& ts) -> unique_ptr<TypeNode>;
 
 auto parseStatement(TokenStream& ts) -> unique_ptr<StatementNode>;
+
 auto parseImportStatement(TokenStream& ts) -> unique_ptr<StatementNode>;
+auto parseTryStatement(TokenStream& ts) -> unique_ptr<StatementNode>;
 auto parseIfStatement(TokenStream& ts) -> unique_ptr<StatementNode>;
 auto parseWhileStatement(TokenStream& ts) -> unique_ptr<StatementNode>;
 auto parseForStatement(TokenStream& ts) -> unique_ptr<StatementNode>;
@@ -55,6 +57,7 @@ auto parseBlock(TokenStream& ts) -> unique_ptr<StatementNode>;
 auto parseFunctionDeclaration(TokenStream& ts) -> unique_ptr<StatementNode>;
 auto parseDeclaration(TokenStream& ts) -> unique_ptr<StatementNode>;
 auto parseStruct(TokenStream& ts) -> unique_ptr<StatementNode>;
+auto parseEnum(TokenStream& ts) -> unique_ptr<StatementNode>;
 auto parseExpressionStatement(TokenStream& ts) -> unique_ptr<StatementNode>;
 
 auto parseAssignment(TokenStream& ts) -> unique_ptr<ExpressionNode>;

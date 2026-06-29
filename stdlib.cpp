@@ -49,7 +49,7 @@ void registerStdLib(Environment& env)
             return static_cast<double>(args[0].asArrayPtr()->size());
         if (args[0].isString())
             return static_cast<double>(args[0].asString().size());
-        throw RuntimeError("type error", {});
+        throw std::runtime_error("invalid operand for len");
     }, "len", env);
     registerNativeFunctions([](const std::vector<RuntimeValue>& args)
     {

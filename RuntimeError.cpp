@@ -6,6 +6,11 @@ void printRuntimeError(const RuntimeError& re, const string& file)
     if (file != "repl")
         std::cerr << "File " << color::magenta << "\"" << file << "\"" << color::reset << ", line " << color::boldBlue
             << re.diagnostic.currentLine << color::reset << '\n';
+    std::cerr << "stack trace:\n";
+    for (const auto& func : re.stackTrace)
+    {
+        std::cerr << "\t\tat " << color::boldWhite << func << color::reset << "()\n";
+    }
     std::cerr << color::boldRed << getErrorCategoryString(re.diagnostic.category) << ": " << color::reset;
 
     switch (re.diagnostic.kind)
