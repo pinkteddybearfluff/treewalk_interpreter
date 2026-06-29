@@ -5,11 +5,11 @@
 #ifndef INTERPRETER_STDLIB_H
 #define INTERPRETER_STDLIB_H
 
-#include "environment.h"
-#include "lexer.h"
-#include "parser.h"
-#include "ast.h"
-#include "Random.h"
+#include "../runtime/Environment.h"
+#include "../lexer/Lexer.h"
+#include "../parser/Parser.h"
+#include "../ast/Ast.h"
+#include "../utilities/Random.h"
 #include <fstream>
 #include <format>
 

@@ -6,7 +6,7 @@
 #include <ranges>
 
 #include "RuntimeValue.h"
-#include "RuntimeError.h"
+#include "../error/RuntimeError.h"
 
 using std::map;
 using std::shared_ptr;

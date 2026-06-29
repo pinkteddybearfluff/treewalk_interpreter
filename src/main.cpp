@@ -6,16 +6,15 @@
 #include <format>
 #include <ranges>
 #include <sstream>
-#include "parser.h"
-#include "ast.h"
-#include "lexer.h"
-#include "environment.h"
-#include "version.h"
-#include "stdlib.h"
-#include "RuntimeValue.h"
-#include "RuntimeError.h"
-#include "utilities.h"
-#include "secrets.h"
+#include "parser/Parser.h"
+#include "ast/Ast.h"
+#include "lexer/Lexer.h"
+#include "runtime/Environment.h"
+#include "Version.h"
+#include "stdlib/Stdlib.h"
+#include "runtime/RuntimeValue.h"
+#include "error/RuntimeError.h"
+#include "utilities/Utilities.h"
 
 // The Laven Language Lavender
 

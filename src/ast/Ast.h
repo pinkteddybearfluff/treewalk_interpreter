@@ -7,10 +7,10 @@
 #include <utility>
 #include <cmath>
 #include <fstream>
-#include "environment.h"
+#include "../runtime/Environment.h"
 
-#include "lexer.h"
-#include "RuntimeError.h"
+#include "../lexer/Lexer.h"
+#include "../error/RuntimeError.h"
 
 constexpr bool DEBUG_AST = true;
 constexpr bool EVALUATE = true;

@@ -2,10 +2,10 @@
 // Created by wcosmo on 6/2/26.
 //
 
-#include "stdlib.h"
-#include "ast.h"
-#include "secrets.h"
-#include "RuntimeError.h"
+#include "Stdlib.h"
+#include "../ast/Ast.h"
+#include "../../Secrets.h"
+#include "../error/RuntimeError.h"
 
 
 static const auto startTime = std::chrono::steady_clock::now();

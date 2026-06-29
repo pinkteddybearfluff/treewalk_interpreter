@@ -11,8 +11,8 @@
 
 
 #include <iostream>
-#include "parser.h"
-#include "ast.h"
+#include "Parser.h"
+#include "../ast/Ast.h"
 
 using std::cin;
 using std::cout;

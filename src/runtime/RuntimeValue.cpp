@@ -3,8 +3,8 @@
 #include <complex>
 #include <ranges>
 
-#include "ast.h"
-#include "environment.h"
+#include "../ast/Ast.h"
+#include "Environment.h"
 
 
 int gCallDepth{0};

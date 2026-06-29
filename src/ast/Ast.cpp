@@ -1,10 +1,10 @@
-#include "ast.h"
+#include "Ast.h"
 #include <stdexcept>
 #include <iostream>
 #include <ranges>
 
-#include "parser.h"
-#include "stdlib.h"
+#include "../parser/Parser.h"
+#include "../stdlib/Stdlib.h"
 
 using std::cout;
 

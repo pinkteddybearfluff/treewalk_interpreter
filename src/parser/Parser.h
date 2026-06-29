@@ -1,8 +1,8 @@
 #ifndef INTERPRETER_PARSER_H
 #define INTERPRETER_PARSER_H
 
-#include "ast.h"
-#include "lexer.h"
+#include "../ast/Ast.h"
+#include "../lexer/Lexer.h"
 #include <string_view>
 
 

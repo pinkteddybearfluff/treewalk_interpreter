@@ -1,5 +1,5 @@
-#include "environment.h"
-#include "ast.h"
+#include "Environment.h"
+#include "../ast/Ast.h"
 
 VariableInfo& Environment::getReference(const string& identifier)
 {

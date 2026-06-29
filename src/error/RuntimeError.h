@@ -4,7 +4,7 @@
 #include <string>
 #include <stdexcept>
 #include <iostream>
-#include "utilities.h"
+#include "../utilities/Utilities.h"
 
 using std::string;
 
