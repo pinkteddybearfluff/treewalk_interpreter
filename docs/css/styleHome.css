@@ -374,3 +374,16 @@ footer p {
     justify-content: left;
   } */
 }
+
+.third-content {
+  color: #181818;
+  font-size: 1.1em;
+  font-weight: 400;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding-left: 50px;
+  padding-right: 50px;
+  padding-top: 30px;
+  padding-bottom: 30px;
+}
