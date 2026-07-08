@@ -164,7 +164,6 @@ unique_ptr<StatementNode> parseStatement(TokenStream& ts)
             match(TokenType::Break, ts);
             consume(TokenType::Semicolon, "expected ';' after break statement", ts);
             if constexpr (DEBUG_PARSER) debugExit(parserName);
-            --loopLevel;
             return make_unique<BreakNode>();
         }
         throw ParserError("break statement not within a loop", ParserError::SemanticError, ts.getLineNo());
@@ -259,7 +258,13 @@ auto parseStruct(TokenStream& ts) -> unique_ptr<StatementNode>
             methods.push_back(parseFunctionDeclaration(ts));
         }
         else if (check(TokenType::Identifier, ts))
+        {
             fieldNames.push_back(consume(TokenType::Identifier, "expected identifier for field name", ts).name);
+            if (match(TokenType::Colon, ts))
+            {
+                parseUnionType(ts);
+            }
+        }
         else
             throw std::runtime_error("only identifiers and function statements allowed inside structs");
         if (match(TokenType::Comma, ts))
@@ -288,6 +293,8 @@ auto parseEnum(TokenStream& ts) -> unique_ptr<StatementNode>
             while (true)
             {
                 fields.push_back(consume(TokenType::Identifier, "expected identifier", ts).name);
+                if (match(TokenType::Colon, ts))
+                    parseUnionType(ts);
                 if (match(TokenType::Comma, ts)) continue;
                 else if (match(TokenType::CloseParen, ts))break;
                 else throw std::runtime_error("expected ',' or '}'");
@@ -596,6 +603,7 @@ unique_ptr<StatementNode> parseFunctionDeclaration(TokenStream& ts)
     match(TokenType::Function, ts);
     int funcDeclarationLine = ts.getLineNo();
     Token t = consume(TokenType::Identifier, "expected identifier after fn", ts);
+    // cout << "Enter function " << t.name << std::endl;
     unique_ptr<TypeNode> type = nullptr;
     bool defArgsStarted{false};
     consume(TokenType::OpenParen, "expected '(' after function name for parameters", ts);
@@ -662,6 +670,8 @@ unique_ptr<StatementNode> parseFunctionDeclaration(TokenStream& ts)
 
     if constexpr (DEBUG_PARSER) debugExit(parserName);
     --functionLevel;
+
+    // cout << "parsed function " << t.name << std::endl;
     if (type)
     {
         return make_unique<FunctionDeclarationNode>(t.name, std::move(parameters), std::move(body),
@@ -710,6 +720,12 @@ unique_ptr<ExpressionNode> parseEquality(TokenStream& ts)
     auto lval = parseComparison(ts);
     while (true)
     {
+        if (match(TokenType::Is, ts))
+        {
+            auto rval = parsePostFix(ts);
+            auto node = make_unique<IsNode>(std::move(lval), std::move(rval), ts.getLineNo());
+            return node;
+        }
         Token t = ts.peek();
         if constexpr (DEBUG_PARSER) debugPeek(parserName, t);
 
@@ -881,7 +897,7 @@ unique_ptr<ExpressionNode> parsePrimary(TokenStream& ts)
 
     Token t = ts.getNextToken();
     if constexpr (DEBUG_PARSER) debugConsume(parserName, t);
-
+    // cout << getStringForType(t.type) << std::endl;
     if (t.type == TokenType::String)
     {
         if constexpr (DEBUG_PARSER) debugExit(parserName);
@@ -930,30 +946,65 @@ unique_ptr<ExpressionNode> parsePrimary(TokenStream& ts)
     if (t.type == TokenType::Identifier)
     {
         string name = t.name;
+        if (name == "Map" && match(TokenType::OpenBrace, ts))
+        {
+            vector<Pair> pairs;
+            if (match(TokenType::CloseBrace, ts))
+                return make_unique<MapNode>(std::move(pairs), ts.getLineNo());
+
+            while (true)
+            {
+                Token t3;
+                if (check(TokenType::String, ts))
+                {
+                    t3 = consume(TokenType::String, "expected string key", ts);
+                }
+                else if (check(TokenType::Number, ts))
+                {
+                    t3 = consume(TokenType::Number, "expected number key", ts);
+                }
+                else if (check(TokenType::Boolean, ts))
+                {
+                    t3 = consume(TokenType::Boolean, "expected boolean key", ts);
+                }
+                else
+                    throw std::runtime_error(std::format("only string, number and bool allowed for key in map {}",
+                                                         ts.getLineNo()));
+                consume(TokenType::Colon, "expected colon after key", ts);
+                auto value = parsePrimary(ts);
+                if (std::holds_alternative<double>(t3.literal))
+                    pairs.push_back({
+                        make_unique<NumberNode>(std::get<double>(
+                                                    t3.literal), ts.getLineNo()),
+                        std::move(value)
+                    });
+                else if (std::holds_alternative<string>(t3.literal))
+                    pairs.push_back({
+                        make_unique<StringNode>(std::get<string>(
+                                                    t3.literal), ts.getLineNo()),
+                        std::move(value)
+                    });
+                else if (std::holds_alternative<bool>(t3.literal))
+                    pairs.push_back({
+                        make_unique<BooleanNode>(std::get<bool>(
+                                                     t3.literal), ts.getLineNo()),
+                        std::move(value)
+                    });
+                if (match(TokenType::Comma, ts))
+                {
+                    if (check(TokenType::CloseBrace, ts))break;
+                    continue;
+                }
+                if (check(TokenType::CloseBrace, ts))
+                    break;
+            }
+            consume(TokenType::CloseBrace, "expected } for closing map", ts);
+            return make_unique<MapNode>(std::move(pairs), ts.getLineNo());
+        }
         if constexpr (DEBUG_PARSER) debugExit(parserName);
         return make_unique<VariableNode>(name, ts.getLineNo());
     }
-    if (t.type == TokenType::OpenBrace)
-    {
-        vector<Pair> pairs;
-        while (true)
-        {
-            Token t3 = consume(TokenType::String, "expected string key", ts);
-            consume(TokenType::Colon, "expected colon after key", ts);
-            auto value = parsePrimary(ts);
-            pairs.push_back({
-                make_unique<StringNode>(std::get<string>(
-                                            t3.literal), ts.getLineNo()),
-                std::move(value)
-            });
-            if (match(TokenType::Comma, ts))
-                continue;
-            if (check(TokenType::CloseBrace, ts))
-                break;
-        }
-        consume(TokenType::CloseBrace, "expected } for closing map", ts);
-        return make_unique<MapNode>(std::move(pairs), ts.getLineNo());
-    }
+
     if (t.type == TokenType::Match)
     {
         return parseMatchPattern(ts);
@@ -1055,7 +1106,7 @@ auto parsePattern(TokenStream& ts) -> unique_ptr<PatternNode>
     if (t.type == TokenType::Number)
     {
         t = ts.getNextToken();
-        cout << getStringForType(t.type) << "  " << getStringForType(ts.peek().type) << std::endl;
+        // cout << getStringForType(t.type) << "  " << getStringForType(ts.peek().type) << std::endl;
         if (match(TokenType::DotDot, ts))
         {
             Token t2 = ts.getNextToken();
@@ -1151,14 +1202,23 @@ auto parsePrimitiveType(TokenStream& ts) -> unique_ptr<TypeNode>
             consume(TokenType::CloseBracket, "expected '[' to close ']' after Tuple type", ts);
             return make_unique<TupleType>(std::move(types));
         }
+        if (t.name == "Map")
+        {
+            consume(TokenType::OpenBracket, "expected '[' after Map type", ts);
+            Token t = consume(TokenType::Identifier, "expected key type", ts);
+            consume(TokenType::Comma, "expected ',' after type in Map", ts);
+            auto valueType = parseUnionType(ts);
+            consume(TokenType::CloseBracket, "expected '[' to close ']' after Map type", ts);
+            return make_unique<MapType>(make_unique<PrimitiveType>(t.name), std::move(valueType));
+        }
+
+        return make_unique<ProgramDefinedType>(t.name);
     }
+
     if (check(TokenType::Null, ts))
     {
         match(TokenType::Null, ts);
         return make_unique<PrimitiveType>("null");
     }
-
-    throw std::runtime_error("Invalid type name");
+    throw std::runtime_error(std::format("Expected type identifier line {}", ts.peek().line));
 }
-
-

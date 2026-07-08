@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="author" content="Ayush P" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="The Laven Programming Language provides a way to get information about Laven Language, an interpreted language worked made as a hobby."
+    />
+    <!-- <link rel="icon" href="/favicon.ico" type="image/x-icon" /> -->
+    <link rel="stylesheet" href="/css/styles.css" />
+    <link rel="stylesheet" href="/css/prism.css" />
+    <title>Laven Programming Language</title>
+  </head>
+  <body>
+    <div id="sidebar"></div>
+    <div class="content">
+      <main class="main-content">
+        <h1>Guide to using Laven Language</h1>
+        <div class="item1">
+          <h2>Hello world!</h2>
+          <pre
+            class="line-numbers"
+          ><code class = "language-rust">//prints hello world in the console
+println("hello, world!");</code></pre>
+        </div>
+        <div class="item2">
+          <h2>Primitive types</h2>
+          <p>
+            Laven is a dynamically typed language, and it provides a variety of
+            primitive data types.
+          </p>
+          <h3>Scalar types</h3>
+          <ul>
+            <li>
+              Numbers: <code class="language-rust">1</code>,
+              <code class="language-rust">3.14</code>,
+              <code class="language-rust">0.0 </code>
+            </li>
+            <li>
+              Strings: <code class="language-rust">"hello, world"</code>,
+              <code class="language-rust">"a"</code>,
+              <code class="language-rust">"Yahallo!"</code>
+            </li>
+            <li>
+              Bool: either <code class="language-rust">true</code> or
+              <code class="language-rust">false</code>
+            </li>
+            <li>Null: <code class="language-rust">null</code></li>
+          </ul>
+          <h3>Compound types</h3>
+          <ul>
+            <li>
+              Arrays: <code class="language-rust">[]</code>,
+              <code class="language-rust">[2,3,5,7]</code>
+            </li>
+            <li>Maps:</li>
+          </ul>
+
+          <pre class="line-numbers"><code class = "language-rust">Map{
+    "name": "Kamille",
+    "age": 29,
+}</code></pre>
+
+          <p>
+            The compound types are stored as a reference unlike scalar types
+            which are stored as a value
+          </p>
+          <p>Example: (scalar types)</p>
+          <pre class="line-numbers"><code class = "language-rust">let num1 = 5;
+let num2 = 21;
+
+//Assign num1 to num2
+num2 = num1;
+
+//Assign num1 to 16
+num1 = 16;
+
+//Prints: num1 = 16 , num2 = 5
+println("num1 =" , num1 , ", num2 =" , num2);</code></pre>
+        </div>
+
+        <p>
+          <a href="/guide/primitive-types/arrays.html">Basic Array usage</a>
+        </p>
+        <p><a href="/guide/primitive-types/maps.html">Basic Map usage</a></p>
+
+        <div class="item3">
+          <h2>Program Defined types</h2>
+          <p>
+            Program Defined types or User definded types allow the user to
+            create custom data types according to there own needs.
+          </p>
+          <p><a href="/guide/program-defined-types/structs.html">Structs</a></p>
+          <p><a href="/guide/program-defined-types/enums.html">Enums</a></p>
+        </div>
+      </main>
+    </div>
+    <script src="/scripts/prism.js"></script>
+    <script>
+      fetch("/templates/sidebar.html")
+        .then((response) => response.text())
+        .then((data) => {
+          document.getElementById("sidebar").innerHTML = data;
+        });
+    </script>
+  </body>
+</html>

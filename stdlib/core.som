@@ -1,0 +1,8 @@
+fn format(str, ...replacements){
+    let res = str;
+    for(let i = 0; i< replacements.size(); i += 1){
+
+        res = res.replace("{}", replacements[i]);
+    }
+    return res;
+}

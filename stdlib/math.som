@@ -22,7 +22,3 @@ fn avg(...args){
     return sum/len;
 }
 
-fn hello(){
-    println("konichiwa");
-}
-

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="author" content="Ayush P" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="The Laven Programming Language provides a way to get information about Laven Language, an interpreted language worked made as a hobby."
+    />
+    <!-- <link rel="icon" href="/favicon.ico" type="image/x-icon" /> -->
+    <link rel="stylesheet" href="/css/styles.css" />
+    <link rel="stylesheet" href="/css/prism.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap"
+      rel="stylesheet"
+    />
+    <title>Laven Programming Language</title>
+  </head>
+  <body>
+    <div id="sidebar"></div>
+    <div class="content">
+      <main class="main-content line-numbers">
+        <h1>Math</h1>
+        <h2>max()</h2>
+        <h2>min()</h2>
+        <h2>clamp()</h2>
+        <h2>avg()</h2>
+        <h2>sqrt()</h2>
+        <h2>pow()</h2>
+        <h2>ceil()</h2>
+        <h2>floor()</h2>
+        <h2>round()</h2>
+        <h2>trunc()</h2>
+        <h2>sin()</h2>
+        <h2>cos()</h2>
+        <h2>tan()</h2>
+        <h2>asin()</h2>
+        <h2>acos()</h2>
+        <h2>atan()</h2>
+        <h2>log()</h2>
+        <h2>exp()</h2>
+      </main>
+    </div>
+    <script src="../scripts/prism.js"></script>
+    <script>
+      fetch("/templates/referenceSidebar.html")
+        .then((response) => response.text())
+        .then((data) => (document.getElementById("sidebar").innerHTML = data));
+    </script>
+  </body>
+</html>

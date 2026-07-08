@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="author" content="Ayush P" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="The Laven Programming Language provides a way to get information about Laven Language, an interpreted language worked made as a hobby."
+    />
+    <!-- <link rel="icon" href="/favicon.ico" type="image/x-icon" /> -->
+    <link rel="stylesheet" href="/css/styles.css" />
+    <link rel="stylesheet" href="/css/prism.css" />
+    <title>Laven Programming Language</title>
+  </head>
+  <body>
+    <div id="sidebar"></div>
+
+    <div class="content">
+      <main class="main-content">
+        <h1>Basic Map usage</h1>
+
+        <p>Literal maps are similar to JSON</p>
+        <p>Example map literal</p>
+        <pre class="line-numbers"><code class="language-rust">
+let operator = Map{
+    "name": "Mizuki",
+    "position": "melee",
+    "tags": ["dps", "crowd-control"],
+    "trait": "Deals Damage to all targets within range
+                50% chance to dodge Physical and Arts attacks
+                 and is less likely to be targeted by enemies"
+    "availability": "headhunting",
+    "attributes": {
+        "hp": 760,
+        "atk": 372,
+        "def": 155,
+        "res": 10,
+        "rdpl-time": 70,
+        "dp-cost": 19,
+        "blk-cnt": 0,
+        "atl-itvl": 3.5,  //trailing commas allowed
+    },
+    "potential":["DP cost -1", "Redeployment time -4 seconds", "ATK +32", "Improves Countertransference", "DP cost -1"],
+    "skills": ["Awaken", "Prisoner's Dilemma", "Moon in the Water"],
+    "base-skills": ["Consciousness Agreement", "Standardization β"], //trailing commas allowed
+};
+
+println(operator);
+//Prints: {"skills": [Awaken, Prisoner's Dilemma, Moon in the Water], 
+//          "base-skills": [Consciousness Agreement, Standardization β],
+//          "potential": [DP cost -1, Redeployment time -4 seconds, ATK +32, Improves Countertransference, DP cost -1],
+//          "attributes": {"blk-cnt": 0, "dp-cost": 19, "atl-itvl": 3.5, "res": 10, "def": 155, "atk": 372, "rdpl-time": 70, "hp": 760},
+//          "availability": "headhunting", "trait": "Deals Damage to all targets within range
+//                50% chance to dodge Physical and Arts attacks
+//                 and is less likely to be targeted by enemies", "tags": [dps, crowd-control], "position": "melee", "name": "Mizuki"}
+
+    </code></pre>
+        <p>
+          Trailing commas are allowed in Map literal notation for ease of use
+          and refactoring.
+        </p>
+        <p>
+          The Map is a
+          <a href="https://en.wikipedia.org/wiki/Hash_table">Hash table</a> data
+          structure also known as dictionaries in languages such as python.
+        </p>
+        <p>
+          The main operations on a dictionary are storing a value with some key
+          and extracting the value given the key.
+        </p>
+        <p>Example for accessing value from map for a given key</p>
+        <pre class="line-numbers"><code class="language-rust">
+//Prints: Mizuki
+println("Operator name:",operator["name"]);
+
+//Updates value at key hp of attributes
+operator["attributes"]["hp"] = 1028;
+
+//Prints: 1028
+println("Operator hp:", operator["attributes"]["hp"]);
+
+//Error: "clay" key not found in operator
+println(operator["clay"]);
+    </code></pre>
+        <p>
+          You can insert more key value pairs in the map after declaration like
+          this
+        </p>
+        <pre class="line-numbers"><code class="language-rust">
+//insert key "modules" with value of the given array
+operator.insert("modules", ["Original: Mizuki's Badge", "AMB-X: Entreaty of the Herald", "AMB-Y: Caerulorum Semina"]);
+
+//Prints: [Original: Mizuki's Badge, AMB-X: Entreaty of the Herald, AMB-Y: Caerulorum Semina]
+println(operator["modules"]);
+
+//inserting the same key does nothing
+operator.insert("modules", []);
+    </code></pre>
+
+        <p>
+          Maps unlike primitive data types which are stored by value in
+          variables, they are stored by reference to the map instead. This might
+          have to some the unexpected effect as documented below.
+        </p>
+        <pre class="line-numbers"><code class="language-rust">
+//Creates Map { "name": "Ashley", "age": 29} and assigns reference of this Map to person
+let person = Map{
+    "name": "Ashley",
+    "age": 29
+};
+
+//Assign human to person
+let human = person;
+//Since person is reference to Map the above statement assigns the reference of Map to human
+//human and person refer to/ point to the same Map
+
+//Assigns "Kamille" to "name" field of human
+human["name"] = "Kamille";
+//Similar to Array the above change also affects person
+
+//Prints: person = {"age": 29, "name": "Kamille"}
+println("person =", person);
+        </code></pre>
+      </main>
+    </div>
+
+    <script src="/scripts/prism.js"></script>
+    <script>
+      fetch("/templates/sidebar.html")
+        .then((response) => response.text())
+        .then((data) => {
+          document.getElementById("sidebar").innerHTML = data;
+        });
+    </script>
+  </body>
+</html>

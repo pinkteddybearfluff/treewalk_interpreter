@@ -22,5 +22,4 @@ add_executable(laven
         src/error/RuntimeError.h
         src/utilities/Utilities.h
         src/utilities/Utilities.cpp
-        Secrets.h
         src/utilities/Random.h)

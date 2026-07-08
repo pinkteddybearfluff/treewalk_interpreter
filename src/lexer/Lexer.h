@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <string>
+#include <format>
 #include <vector>
 #include "../runtime/Environment.h"
 
@@ -83,6 +84,7 @@ enum class TokenType
     Catch,
     Throw,
     Enum,
+    Is,
 };
 
 struct Token
@@ -117,7 +119,7 @@ private:
     Token charToToken(int ch);
 
     string getVarName();
-    string getString();
+    string getString(char quoteType);
     double lexNumber();
     void consumeComments();
     void consumeMLComments();

@@ -99,6 +99,12 @@ void printRuntimeError(const RuntimeError& re, const string& file)
     case ErrorKind::UninitializedVariable:
         std::cerr << "use of variable '" << re.diagnostic.identifier << "' before initialization\n";
         break;
+    case ErrorKind::AssertionFailure:
+        std::cerr << "\n";
+        break;
+    case ErrorKind::PanicAbort:
+        std::cerr << re.diagnostic.identifier << "\n";
+        break;
     }
 }
 
@@ -129,5 +135,9 @@ string getErrorCategoryString(ErrorCategory category)
         return "ImportError";
     case ErrorCategory::UninitializedError:
         return "UninitializedError";
+    case ErrorCategory::AssertionError:
+        return "AssertionError";
+    case ErrorCategory::PanicError:
+        return "PanicError";
     }
 }

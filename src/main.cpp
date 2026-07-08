@@ -34,17 +34,36 @@ auto main(int argc, char** argv) -> int
     auto evalCompleteFlag = std::chrono::high_resolution_clock::now();
 
     //shared_ptr so to make Environment a linked structure
-    InterpreterContext ctx{std::make_shared<Environment>(), std::make_shared<ModuleManager>()};
+    InterpreterContext ctx{
+        std::make_shared<Environment>(), std::make_shared<Environment>(), std::make_shared<ModuleManager>()
+    };
 
     shared_ptr<Environment> env = ctx.env;
     shared_ptr<ModuleManager> modules = ctx.module;
 
-    env->declare("__VERSION__", {string(LANGUAGE_VERSION), 0});
-    env->parent = nullptr;
-    registerStdLib(*env);
-    vector<unique_ptr<ProgramNode>> loadedLibraries;
-    loadedLibraries.push_back(loadStdlib("array", ctx));
+    shared_ptr<Environment> builtinEnv = ctx.builtin;
+    builtinEnv->declare("__VERSION__", {string(LANGUAGE_VERSION), 0});
+    builtinEnv->parent = nullptr;
+    registerStdLib(*builtinEnv);
+    ctx.env->parent = builtinEnv;
+    modules->loadedModules.insert(std::make_pair("coreSTDLIB", loadStdlib("core", ctx)));
+    importBuiltinStdlib("array", "ARRAYSTDLIB", ctx);
+    importBuiltinStdlib("map", "MAPSTDLIB", ctx);
+    importBuiltinStdlib("string", "STRINGSTDLIB", ctx);
 
+    /*
+     *  Environment hierarchy:
+     *      Builtin Environment:
+     *       |-->   Hosts: core native functions directly defined in the builtin env
+     *       |-->   Hosts: imports STDLIB functions as module in the module environment.
+     *                  Array, Map, and String stored as module, this module stored inside Builtin
+     *
+     *       |-->   Hosts: the main environment.
+     *              Main Environment:
+     *              |-->   Hosts: imports other STDLIB functions as module in the module environment
+     *                          Math, and other ordinary stdlib functions.
+     *              |-->   Hosts: imports other user defined modules as well in the module environment.
+     */
     bool REPL{true};
 
     if (argv[1])
@@ -84,7 +103,7 @@ auto main(int argc, char** argv) -> int
         string file = argv[1];
         ctx.currentFile = file;
         ctx.workingDir = getFolder(file);
-        ctx.module->loadedModules.insert({file, nullptr});
+        ctx.module->loadedModules.insert({file, ModuleCtx(nullptr, ctx.env)});
         REPL = false;
         std::ifstream is(file);
 
@@ -199,10 +218,10 @@ auto main(int argc, char** argv) -> int
                         if (value.isString())
                         {
                             cout << "'";
-                            printRuntimeValue(value);
+                            printRuntimeValue(cout, value);
                             cout << "'";
                         }
-                        else printRuntimeValue(value);
+                        else printRuntimeValue(cout, value);
                         cout << "\n";
                         cout << color::reset;
                     }

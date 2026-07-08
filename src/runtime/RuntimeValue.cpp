@@ -5,6 +5,7 @@
 
 #include "../ast/Ast.h"
 #include "Environment.h"
+#include "../stdlib/Stdlib.h"
 
 
 int gCallDepth{0};
@@ -61,9 +62,9 @@ string RuntimeValue::description() const
     case Kind::Map:
         return "map";
     case Kind::StructObj:
-        return "struct";
+        return "struct object";
     case Kind::EnumObj:
-        return "enum";
+        return "enum object";
     case Kind::EnumVariantReference:
         return "enumVariantRef";
     case Kind::TypeReference:
@@ -190,6 +191,27 @@ RuntimeValue StructInstance::getMemberVal(string mName)
     return fields[mName];
 }
 
+bool EnumValue::hasMemberField(string mName)
+{
+    for (std::size_t i = 0; i < type->variants[variantIndex].fields.size(); ++i)
+    {
+        if (type->variants[variantIndex].fields[i] == mName)return true;
+    }
+    return false;
+}
+
+RuntimeValue EnumValue::getMemberValue(string mName)
+{
+    for (std::size_t i = 0; i < type->variants[variantIndex].fields.size(); ++i)
+    {
+        if (type->variants[variantIndex].fields[i] == mName)
+        {
+            return fields[i];
+        };
+    }
+    throw std::runtime_error("someone didn't check before if enum variant has the member");
+}
+
 bool RuntimeValue::isTruthy() const
 {
     if (isArray())
@@ -228,127 +250,61 @@ bool RuntimeValue::isTruthy() const
     return false;
 }
 
-void printRuntimeValue(const RuntimeValue& value)
+void printRuntimeValue(std::ostream& os, const RuntimeValue& value)
 {
     switch (value.kind())
     {
     case RuntimeValue::Kind::String:
-        std::cout << value.asString();
-        break;
     case RuntimeValue::Kind::Boolean:
-        std::cout << (value.asBoolean() ? "true" : "false");
-        break;
     case RuntimeValue::Kind::Number:
-        std::cout << value.asNumber();
-        break;
+    case RuntimeValue::Kind::Null:
     case RuntimeValue::Kind::Array:
-        std::cout << "[";
-        for (int i = 0; i < value.asArrayPtr()->size(); ++i)
-        {
-            if (i) std::cout << ", ";
-            printRuntimeValue(value.asArrayPtr()->at(i));
-        }
-        std::cout << "]";
+    case RuntimeValue::Kind::Map:
+    case RuntimeValue::Kind::StructObj:
+    case RuntimeValue::Kind::EnumObj:
+    case RuntimeValue::Kind::EnumVariantReference:
+    case RuntimeValue::Kind::TypeReference:
+        os << stdlib::stringify(value);
         break;
     case RuntimeValue::Kind::Callable:
         if (auto fn = dynamic_cast<FunctionObject*>(value.asCallableObj().get()))
-            std::cout << "function " << "" << " at "
+            os << "function " << "" << " at "
                 << value.asCallableObj();
         if (auto fn = dynamic_cast<NativeFunction*>(value.asCallableObj().get()))
-            std::cout << "built-in function" << "";
-        break;
-    case RuntimeValue::Kind::Null:
-        std::cout << "null";
+            os << "built-in function" << "";
         break;
     case RuntimeValue::Kind::Module:
-        std::cout << "module " << value.asModulePtr()->getName();
+        os << "module " << value.asModulePtr()->getName();
         break;
     case RuntimeValue::Kind::Uninitialized:
-        std::cout << "Uninitialized";
+        os << "Uninitialized";
         break;
-    case RuntimeValue::Kind::Map:
-        {
-            std::cout << "{";
-
-            bool first = true;
-
-            for (const auto& [key, val] : *(value.asMapPtr()))
-            {
-                if (!first)
-                    std::cout << ", ";
-
-                first = false;
-                if (key.isString())std::cout << '"';
-                printRuntimeValue(key);
-                if (key.isString())std::cout << '"';
-                std::cout << ": ";
-                if (val.isString())std::cout << '"';
-                printRuntimeValue(val);
-                if (val.isString())std::cout << '"';
-            }
-            std::cout << "}";
-            break;
-        }
-    case RuntimeValue::Kind::StructObj:
-        {
-            for (const auto& [fieldName, value] : value.asStructObjPtr()->fields)
-            {
-                cout << fieldName << ": ";
-                printRuntimeValue(value);
-                cout << "\n";
-            }
-            for (const auto& name : value.asStructObjPtr()->type->methods | std::views::keys)
-            {
-                cout << name;
-            }
-            break;
-        }
-    case RuntimeValue::Kind::EnumObj:
-        {
-            cout << value.asEnumPtr()->type->typeName << "." << value.asEnumPtr()->type->variants[value.asEnumPtr()->
-                variantIndex].name;
-            if (!value.asEnumPtr()->fields.empty())
-            {
-                cout << "(";
-                for (std::size_t i = 0; i < value.asEnumPtr()->fields.size(); ++i)
-                {
-                    printRuntimeValue(value.asEnumPtr()->fields[i]);
-                    if (i < value.asEnumPtr()->fields.size() - 1)
-                    {
-                        cout << ", ";
-                    }
-                }
-                cout << ")";
-            }
-            break;
-        }
-    case RuntimeValue::Kind::EnumVariantReference:
-        {
-            cout << "<enum constructor " << value.asEnumVariantRef().type->typeName << "." << value.asEnumVariantRef().
-                type->variants[value.asEnumVariantRef().variantIndex].name << ">";
-        }
-    case RuntimeValue::Kind::TypeReference:
-        {
-            if (auto* structType = dynamic_cast<StructType*>(value.asTypeRef().type))
-            {
-                cout << "<struct " << structType->name << ">";
-            }
-            if (auto* enumType = dynamic_cast<EnumType*>(value.asTypeRef().type))
-            {
-                cout << "<enum " << enumType->typeName << ">";
-            }
-        }
     }
 }
 
-RuntimeValue& Module::getMember(const std::string& memberName)
+// RuntimeValue& Module::getMember(const std::string& memberName)
+// {
+//     if (env->hasVariable(memberName))
+//         return env->getReference(memberName).value;
+//     if (env->hasType(memberName))
+//         return TypeReference{env->getType(memberName)};
+// }
+
+bool Module::hasMember(const std::string& memberName) const
 {
-    return env->getReference(memberName).value;
+    if (env->hasVariable(memberName))
+        return true;
+    if (env->hasType(memberName))
+        return true;
+    return false;
 }
 
-const RuntimeValue& Module::getMember(const std::string& memberName) const
+RuntimeValue Module::getMember(const std::string& memberName) const
 {
-    return env->getReference(memberName).value;
+    if (env->hasVariable(memberName))
+        return env->getReference(memberName).value;
+    if (env->hasType(memberName))
+        return TypeReference{env->getType(memberName)};
 }
 
 std::size_t RuntimeValueHash::operator()(const RuntimeValue& value) const
@@ -383,8 +339,8 @@ namespace Operator
             return a.asNumber() + b.asNumber();
 
         if (a.isString() && b.isString()) return a.asString() + b.asString();
-        if (a.isNumber() && b.isString()) return b.asString() + std::to_string(a.asNumber());
-        if (a.isString() && b.isNumber()) return a.asString() + std::to_string(b.asNumber());
+        if (a.isNumber() && b.isString()) return b.asString() + stdlib::numberToString(a.asNumber());
+        if (a.isString() && b.isNumber()) return a.asString() + stdlib::numberToString(b.asNumber());
         throw UnsupportedOperation();
     }
 
@@ -455,11 +411,40 @@ namespace Operator
             return false;
         }
         if (a.isNull() && (b.isString() || b.isArray() || b.isBoolean() || b.isCallable() || b.isModule() || b.
-            isNumber() || b.isStructObj()))
+            isNumber() || b.isStructObj() || b.isEnumObj() || b.isTypeReference()))
             return false;
         if (b.isNull() && (a.isString() || a.isArray() || a.isBoolean() || a.isCallable() || a.isModule() || a.
-            isNumber() || b.isStructObj()))
+            isNumber() || a.isStructObj() || a.isEnumObj() || a.isTypeReference()))
             return false;
+        if (a.isEnumObj() && b.isEnumObj())
+        {
+            if (a.asEnumPtr()->type == b.asEnumPtr()->type)
+            {
+                if (a.asEnumPtr()->variantIndex == b.asEnumPtr()->variantIndex)
+                {
+                    for (std::size_t i = 0; i < a.asEnumPtr()->fields.size(); ++i)
+                    {
+                        if (notEqual(a.asEnumPtr()->fields[i], b.asEnumPtr()->fields[i]).asBoolean()) return false;
+                    }
+                    return true;
+                }
+                else return false;
+            }
+            else return false;
+        }
+        if (a.isStructObj() && b.isStructObj())
+        {
+            if (a.asStructObjPtr()->type == b.asStructObjPtr()->type)
+            {
+                for (const auto& [fieldName, value] : a.asStructObjPtr()->fields)
+                {
+                    if (notEqual(value, b.asStructObjPtr()->fields[fieldName]).asBoolean())
+                        return false;
+                }
+                return true;
+            }
+            else return false;
+        }
         throw UnsupportedOperation();
     }
 

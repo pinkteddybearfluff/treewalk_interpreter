@@ -1,0 +1,53 @@
+// //Define new program defined type with type name Color
+// enum Color{
+//     Red,
+//     Blue,
+//     Green,
+//     Black,
+//     Lavender,
+// }
+
+// let color = Color.Lavender;
+
+// //Prints: Color.Lavender
+// println(color);
+
+
+//Define new program-defined type with type name Color
+enum Color{
+    RGB(r,g,b),
+    HSL(h, s, l),
+    HSV(h, s, v),
+    Hex(value),
+}
+
+let lavender = Color.RGB(211,211,255);
+let crimsonRed = Color.HSL(0,68,42);
+let cobaltBlue = Color.Hex("#0047AB");
+
+//Prints: Color.RGB(211, 211, 255) Color.HSL(0, 68, 42) Color.Hex(#0047AB)
+println(lavender, crimsonRed, cobaltBlue);
+
+//Access individual values: 
+//Prints: 211 211 255
+println(lavender.r,lavender.g,lavender.b);
+//Prints: #0047AB
+println(cobaltBlue.value);
+
+//Error lavender doesn't have h, s, l as it was defined as a Color.RGB
+// println(lavender.h, lavender.s, lavender.l);
+
+if (lavender is Color.RGB){
+    print("lavender was defined as RGB ");
+    println(lavender.r, lavender.g, lavender.b);
+}else if (lavender is Color.HSL){
+    print("lavender was defined as HSL ");
+    println(lavender.h, lavender.s, lavender.l);
+}else if (lavender is Color.HSV){
+    print("lavender was defined as HSV ");
+    println(lavender.h, lavender.s, lavender.v);
+}else {
+    print("lavender was defined as Hex ");
+    println(lavender.value);
+}
+//Output: lavender was defined as RGB 211 211 255

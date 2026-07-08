@@ -1,0 +1,96 @@
+// //Array [1, 2, 3, 4] is created and assigns reference of this Array to arr
+// //as if arr is alias to Array [1, 2, 3, 4]
+// let arr = [1, 2, 3, 4];
+
+// //Assign arr to list;
+// let list = arr;
+// //Now list and arr point to same Array [1, 2, 3, 4];
+
+
+// //Assign first element of list to 100
+// list[0] = 100;
+// //Since list and arr reference the same Array [1, 2, 3, 4]
+// //changing first element of list also changes the first element of arr
+
+// //Prints arr = [100, 2, 3, 4]
+// println("arr =", arr);
+
+// //Creates Map { "name": "Ashley", "age": 29} and assigns reference of this Map to person
+// let person = {
+//     "name": "Ashley",
+//     "age": 29
+// };
+
+// //Assign human to person
+// let human = person;
+// //Since person is reference to Map the above statement assigns the reference of Map to human
+// //human and person refer to/ point to the same Map
+
+// //Assigns "Kamille" to "name" field of human
+// human["name"] = "Kamille";
+// //Similar to Array the above change also affects person
+
+// //Prints: person = {"age": 29, "name": "Kamille"}
+// println("person =", person);
+
+let operator = Map{
+    "name": "Mizuki",
+    "position": "melee",
+    "tags": ["dps", "crowd-control"],
+    "trait": "Deals Damage to all targets within range
+                50% chance to dodge Physical and Arts attacks
+                 and is less likely to be targeted by enemies"
+    "availability": "headhunting",
+    "attributes": {
+        "hp": 760,
+        "atk": 372,
+        "def": 155,
+        "res": 10,
+        "rdpl-time": 70,
+        "dp-cost": 19,
+        "blk-cnt": 0,
+        "atl-itvl": 3.5
+    },
+    "potential":["DP cost -1", "Redeployment time -4 seconds", "ATK +32", "Improves Countertransference", "DP cost -1"],
+    "skills": ["Awaken", "Prisoner's Dilemma", "Moon in the Water"],
+    "base-skills": ["Consciousness Agreement", "Standardization β"]
+};
+
+//Prints: Mizuki
+println("Operator name:",operator["name"]);
+
+operator["attributes"]["hp"] = 1028;
+//Prints: 1028
+println("Operator hp:", operator["attributes"]["hp"]);
+
+//Error: "clay" key not found in operator
+// println(operator["clay"]);
+
+//insert key "modules" with value of the given array
+operator.insert("modules", ["Original: Mizuki's Badge", "AMB-X: Entreaty of the Herald", "AMB-Y: Caerulorum Semina"]);
+
+operator.insert( "modules", []);
+
+//Prints: [Original: Mizuki's Badge, AMB-X: Entreaty of the Herald, AMB-Y: Caerulorum Semina]
+println(operator["modules"]);
+
+
+// let arr = [2,3,5,7];
+
+// //Add 11 to the end of array
+// arr.push(11);
+// //Prints: [2, 3, 5, 7, 11]
+// println(arr);
+
+// //Remove element from the end of array
+// arr.pop();
+// //Prints: [2, 3, 5, 7]
+// println(arr);
+
+// //Get size of or number of elements in array, Prints: 4
+// println(arr.size());
+
+// //Remove element from the start of array
+// arr.popFront();
+// //Prints: [3, 5, 7]
+// println(arr);

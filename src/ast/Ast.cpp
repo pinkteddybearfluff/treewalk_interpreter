@@ -23,6 +23,13 @@ void ArrayType::debugPrint(int indentLevel) const
     nestedType->debugPrint(indentLevel + 1);
 }
 
+void MapType::debugPrint(int indentLevel) const
+{
+    cout << string(indentLevel * IndentSize, ' ') << "Map\n";
+    key->debugPrint(indentLevel + 1);
+    value->debugPrint(indentLevel + 1);
+}
+
 
 void TupleType::debugPrint(int indentLevel) const
 {
@@ -33,6 +40,10 @@ void TupleType::debugPrint(int indentLevel) const
     }
 }
 
+void ProgramDefinedType::debugPrint(int indentLevel) const
+{
+    cout << string(indentLevel * IndentSize, ' ') << typeName << "\n";
+}
 
 void UnionType::debugPrint(int indentLevel) const
 {
@@ -325,22 +336,22 @@ void IndexNode::debugPrint(int indentLevel) const
 RuntimeValue& MemberAccessNode::getReference(InterpreterContext& ctx)
 {
     RuntimeValue objVal = obj->evaluateNode(ctx).value;
-    if (objVal.isModule())
-    {
-        try
-        {
-            return objVal.asModulePtr()->getMember(member->getIdentifierName());
-        }
-        catch (const UndefinedVariable)
-        {
-            throw RuntimeError("undefined variable", {
-                                   .category = ErrorCategory::AttributeError, .kind = ErrorKind::MissingAttribute,
-                                   .primary = getObjName(),
-                                   .secondary = member->getIdentifierName(),
-                                   .currentLine = line
-                               }, stackTrace);
-        }
-    }
+    // if (objVal.isModule())
+    // {
+    //     try
+    //     {
+    //         return objVal.asModulePtr()->getMember(member->getIdentifierName());
+    //     }
+    //     catch (const UndefinedVariable)
+    //     {
+    //         throw RuntimeError("undefined variable", {
+    //                                .category = ErrorCategory::AttributeError, .kind = ErrorKind::MissingAttribute,
+    //                                .primary = getObjName(),
+    //                                .secondary = member->getIdentifierName(),
+    //                                .currentLine = line
+    //                            }, stackTrace);
+    //     }
+    // }
     if (objVal.isStructObj())
     {
         return objVal.asStructObjPtr()->fields[member->getIdentifierName()];
@@ -359,7 +370,8 @@ EvalResult MemberAccessNode::evaluateNode(InterpreterContext& ctx) const
     {
         try
         {
-            return {true, objVal.asModulePtr()->getMember(member->getIdentifierName())};
+            auto val = objVal.asModulePtr()->getMember(member->getIdentifierName());
+            return {true, val};
         }
         catch (const UndefinedVariable)
         {
@@ -373,13 +385,71 @@ EvalResult MemberAccessNode::evaluateNode(InterpreterContext& ctx) const
     }
     if (objVal.isArray())
     {
-        RuntimeValue memberVal = member->evaluateNode(ctx).value;
-        if (memberVal.isCallable())
+        RuntimeValue arrayModule = ctx.env->getReference("ARRAYSTDLIB").value;
+
+        try
         {
+            if (arrayModule.asModulePtr()->hasMember(member->getIdentifierName()))
+            {
+                RuntimeValue callable = arrayModule.asModulePtr()->getMember(member->getIdentifierName());
+                return {
+                    true,
+                    std::static_pointer_cast<Callable>(
+                        std::make_shared<BoundMethod>(callable.asCallableObj(), objVal))
+                };
+            }
+            throw std::runtime_error("module array has no member " + member->getIdentifierName());
+        }
+        catch (const UndefinedVariable)
+        {
+            throw RuntimeError("undefined variable", {
+                                   .category = ErrorCategory::AttributeError, .kind = ErrorKind::MissingAttribute,
+                                   .primary = getObjName(),
+                                   .secondary = member->getIdentifierName(),
+                                   .currentLine = line
+                               }, stackTrace);
+        }
+    }
+    if (objVal.isString())
+    {
+        RuntimeValue stringModule = ctx.env->getReference("STRINGSTDLIB").value;
+        try
+        {
+            RuntimeValue callable = stringModule.asModulePtr()->getMember(member->getIdentifierName());
             return {
                 true,
-                std::static_pointer_cast<Callable>(std::make_shared<BoundMethod>(memberVal.asCallableObj(), objVal))
+                std::static_pointer_cast<Callable>(std::make_shared<BoundMethod>(callable.asCallableObj(), objVal))
             };
+        }
+        catch (const UndefinedVariable)
+        {
+            throw RuntimeError("undefined variable", {
+                                   .category = ErrorCategory::AttributeError, .kind = ErrorKind::MissingAttribute,
+                                   .primary = getObjName(),
+                                   .secondary = member->getIdentifierName(),
+                                   .currentLine = line
+                               }, stackTrace);
+        }
+    }
+    if (objVal.isMap())
+    {
+        RuntimeValue mapModule = ctx.env->getReference("MAPSTDLIB").value;
+        try
+        {
+            RuntimeValue callable = mapModule.asModulePtr()->getMember(member->getIdentifierName());
+            return {
+                true,
+                std::static_pointer_cast<Callable>(std::make_shared<BoundMethod>(callable.asCallableObj(), objVal))
+            };
+        }
+        catch (const UndefinedVariable)
+        {
+            throw RuntimeError("undefined variable", {
+                                   .category = ErrorCategory::AttributeError, .kind = ErrorKind::MissingAttribute,
+                                   .primary = getObjName(),
+                                   .secondary = member->getIdentifierName(),
+                                   .currentLine = line
+                               }, stackTrace);
         }
     }
     if (objVal.isTypeReference())
@@ -421,6 +491,15 @@ EvalResult MemberAccessNode::evaluateNode(InterpreterContext& ctx) const
                                .currentLine = line
                            }, stackTrace);
     }
+    if (objVal.isEnumObj())
+    {
+        if (objVal.asEnumPtr()->hasMemberField(member->getIdentifierName()))
+        {
+            return {true, objVal.asEnumPtr()->getMemberValue(member->getIdentifierName())};
+        }
+        throw std::runtime_error("Enum variant has no member named " + member->getIdentifierName());
+    }
+    // if (objVal.is)
     throw RuntimeError("type does not support member access", {
                            .category = ErrorCategory::AttributeError,
                            .kind = ErrorKind::InvalidReceiver, .identifier = objVal.description(),
@@ -500,6 +579,35 @@ void BinaryNode::debugPrint(int indentLevel) const
     right->debugPrint(indentLevel + 1);
 }
 
+EvalResult IsNode::evaluateNode(InterpreterContext& ctx) const
+{
+    RuntimeValue val = value->evaluateNode(ctx).value;
+    if (!val.isEnumObj()) throw std::runtime_error("lhs for is should be enum object");
+    RuntimeValue variant = enumVariant->evaluateNode(ctx).value;
+    if (!variant.isEnumVariantReference() && !variant.isEnumObj())
+        throw std::runtime_error("rhs of is should be enum value or enum variant");
+    if (variant.isEnumVariantReference())
+        if (val.asEnumPtr()->type == variant.asEnumVariantRef().type)
+        {
+            if (val.asEnumPtr()->variantIndex == variant.asEnumVariantRef().variantIndex)
+            {
+                return {true, true};
+            }
+            return {true, false};
+        }
+    if (variant.isEnumObj())
+        return {true, Operator::equal(val.asEnumPtr(), variant.asEnumPtr())};
+    return {true, false};
+};
+
+void IsNode::debugPrint(int indentLevel) const
+{
+    cout << string(indentLevel * IndentSize, ' ') << "Is\n";
+    value->debugPrint(indentLevel + 1);
+    cout << enumVariant->description();
+    enumVariant->debugPrint(indentLevel + 1);
+}
+
 EvalResult ExpressionStatementNode::evaluateNode(InterpreterContext& ctx) const
 {
     auto val = expressionStmt->evaluateNode(ctx).value;
@@ -524,6 +632,13 @@ EvalResult VariableNode::evaluateNode(InterpreterContext& ctx) const
         {
             auto value = TypeReference{ctx.env->getType(identifierName)};
             return {true, value};
+        }
+        else
+        {
+            throw RuntimeError("variable not defined", {
+                                   .category = ErrorCategory::NameError, .kind = ErrorKind::VariableUndefined,
+                                   .identifier = identifierName, .currentLine = line
+                               }, stackTrace);
         }
         if (val.isUninitialized())
             throw RuntimeError("use of uninitialized variable", {
@@ -592,14 +707,17 @@ EvalResult CompoundAssignmentNode::evaluateNode(InterpreterContext& ctx) const
     case TokenType::PlusEqual:
         if (lhs.isNumber() && rhs.isNumber())
         {
-            return {false, lhs.getNumberRef() += rhs.asNumber()};
+            lhs.getNumberRef() = Operator::add(lhs, rhs).asNumber();
+            return {false, lhs.asNumber()};
         }
         if (lhs.isString() && rhs.isString())
         {
-            return {false, lhs.getStringRef() += rhs.asString()};
+            lhs.getStringRef() = Operator::add(lhs, rhs).asString();
+            return {false, lhs.asString()};
         }
         if (lhs.isBoolean() && rhs.isBoolean())
         {
+            lhs.getBoolRef() = Operator::add(lhs, rhs).asBoolean();
             return {false, lhs.getBoolRef() += rhs.asBoolean()};
         }
         throw RuntimeError("unsupported operations", {
@@ -612,10 +730,12 @@ EvalResult CompoundAssignmentNode::evaluateNode(InterpreterContext& ctx) const
     case TokenType::MinusEqual:
         if (lhs.isNumber() && rhs.isNumber())
         {
-            return {false, lhs.getNumberRef() -= rhs.asNumber()};
+            lhs.getNumberRef() = Operator::sub(lhs, rhs).asNumber();
+            return {false, lhs.asNumber()};
         }
         if (lhs.isBoolean() && rhs.isBoolean())
         {
+            lhs.getBoolRef() = Operator::sub(lhs, rhs).asBoolean();
             return {false, lhs.getBoolRef() -= rhs.asBoolean()};
         }
         throw RuntimeError("unsupported operations", {
@@ -628,11 +748,13 @@ EvalResult CompoundAssignmentNode::evaluateNode(InterpreterContext& ctx) const
     case TokenType::MultiplyEqual:
         if (lhs.isNumber() && rhs.isNumber())
         {
-            return {false, lhs.getNumberRef() *= rhs.asNumber()};
+            lhs.getNumberRef() = Operator::multiply(lhs, rhs).asNumber();
+            return {false, lhs.asNumber()};
         }
         if (lhs.isBoolean() && rhs.isBoolean())
         {
-            return {false, lhs.getBoolRef() *= rhs.asBoolean()};
+            lhs.getBoolRef() = Operator::multiply(lhs, rhs).asBoolean();
+            return {false, lhs.asNumber()};
         }
         throw RuntimeError("unsupported operations", {
                                .category = ErrorCategory::TypeError, .kind = ErrorKind::UnsupportedOperation,
@@ -641,20 +763,21 @@ EvalResult CompoundAssignmentNode::evaluateNode(InterpreterContext& ctx) const
                            }, stackTrace);
         break;
     case TokenType::DivideEqual:
-        if (lhs.isNumber() && rhs.isNumber())
+        try
         {
-            if (rhs.asNumber())
-                return {false, lhs.getNumberRef() /= rhs.asNumber()};
-            throw RuntimeError("division by zero", {
-                                   .category = ErrorCategory::ZeroDivisionError,
-                                   .kind = ErrorKind::DivisionByZero,
-                                   .currentLine = line
-                               }, stackTrace);
-        }
-        if (lhs.isBoolean() && rhs.isBoolean())
-        {
-            if (rhs.asBoolean())
+            if (lhs.isNumber() && rhs.isNumber())
+            {
+                lhs.getNumberRef() = Operator::divide(lhs, rhs).asNumber();
+                return {false, lhs.asNumber()};
+            }
+            if (lhs.isBoolean() && rhs.isBoolean())
+            {
+                lhs.getBoolRef() = Operator::divide(lhs, rhs).asBoolean();
                 return {false, lhs.getBoolRef() /= rhs.asBoolean()};
+            }
+        }
+        catch (DivisionByZero)
+        {
             throw RuntimeError("division by zero", {
                                    .category = ErrorCategory::ZeroDivisionError,
                                    .kind = ErrorKind::DivisionByZero,
@@ -742,7 +865,7 @@ EvalResult IfNode::evaluateNode(InterpreterContext& ctx) const
 {
     auto currentEnv = std::make_shared<Environment>();
     currentEnv->parent = ctx.env;
-    InterpreterContext ctxNew{currentEnv, ctx.module};
+    InterpreterContext ctxNew{currentEnv, ctx.builtin, ctx.module};
     if (condition->evaluateNode(ctxNew).value.isTruthy())
         thenStatement->evaluateNode(ctxNew);
     else
@@ -769,7 +892,7 @@ void IfNode::debugPrint(int indentLevel) const
 
 EvalResult WhileNode::evaluateNode(InterpreterContext& ctx) const
 {
-    InterpreterContext currentCtx{std::make_shared<Environment>(), ctx.module};
+    InterpreterContext currentCtx{std::make_shared<Environment>(), ctx.builtin, ctx.module};
     currentCtx.env->parent = ctx.env;
 
 
@@ -778,7 +901,7 @@ EvalResult WhileNode::evaluateNode(InterpreterContext& ctx) const
         try
         {
             // ScopedEnvironment local(currentEnv);
-            InterpreterContext localContext{std::make_shared<Environment>(), ctx.module};
+            InterpreterContext localContext{std::make_shared<Environment>(), ctx.builtin, ctx.module};
             localContext.env->parent = currentCtx.env;
             statement->evaluateNode(localContext);
         }
@@ -803,7 +926,7 @@ void WhileNode::debugPrint(int indentLevel) const
 
 EvalResult ForNode::evaluateNode(InterpreterContext& ctx) const
 {
-    InterpreterContext currentCtx{std::make_shared<Environment>(), ctx.module};
+    InterpreterContext currentCtx{std::make_shared<Environment>(), ctx.builtin, ctx.module};
     currentCtx.env->parent = ctx.env;
 
     // ScopedEnvironment local(scopes);
@@ -818,7 +941,7 @@ EvalResult ForNode::evaluateNode(InterpreterContext& ctx) const
                 if (!condition->evaluateNode(currentCtx).value.isTruthy())
                     break;
 
-            InterpreterContext localCtx{std::make_shared<Environment>(), ctx.module};
+            InterpreterContext localCtx{std::make_shared<Environment>(), ctx.builtin, ctx.module};
             localCtx.env->parent = currentCtx.env;
             statement->evaluateNode(localCtx);
             if (expr) expr->evaluateNode(currentCtx);
@@ -859,7 +982,7 @@ EvalResult ForEachNode::evaluateNode(InterpreterContext& ctx) const
         {
             try
             {
-                InterpreterContext currentCtx{std::make_shared<Environment>(), ctx.module};
+                InterpreterContext currentCtx{std::make_shared<Environment>(), ctx.builtin, ctx.module};
                 currentCtx.env->parent = ctx.env;
                 currentCtx.env->declare(identifiers[0], VariableInfo{container.asArrayPtr()->at(i), 0});
                 if (identifiers.size() == 2)
@@ -884,7 +1007,7 @@ EvalResult ForEachNode::evaluateNode(InterpreterContext& ctx) const
         {
             try
             {
-                InterpreterContext currentCtx{std::make_shared<Environment>(), ctx.module};
+                InterpreterContext currentCtx{std::make_shared<Environment>(), ctx.builtin, ctx.module};
                 currentCtx.env->parent = ctx.env;
                 currentCtx.env->declare(identifiers[0], VariableInfo{container.asString().at(i), 0});
                 if (identifiers.size() == 2)
@@ -909,7 +1032,7 @@ EvalResult ForEachNode::evaluateNode(InterpreterContext& ctx) const
         {
             try
             {
-                InterpreterContext currentCtx{std::make_shared<Environment>(), ctx.module};
+                InterpreterContext currentCtx{std::make_shared<Environment>(), ctx.builtin, ctx.module};
                 currentCtx.env->parent = ctx.env;
                 currentCtx.env->declare(identifiers[0], VariableInfo{key, 0});
                 currentCtx.env->declare(identifiers[1], VariableInfo{value, 0});
@@ -950,7 +1073,7 @@ void ContinueNode::debugPrint(int indentLevel) const
 
 EvalResult BlockExpressionNode::evaluateNode(InterpreterContext& ctx) const
 {
-    InterpreterContext localCtx = {std::make_shared<Environment>(), ctx.module};
+    InterpreterContext localCtx = {std::make_shared<Environment>(), ctx.builtin, ctx.module};
     localCtx.env->parent = ctx.env;
     for (auto& statement : statements)
     {
@@ -975,7 +1098,7 @@ EvalResult BlockNode::evaluateNode(InterpreterContext& ctx) const
     // ScopedEnvironment local(env);
     auto currentEnv = std::make_shared<Environment>();
     currentEnv->parent = ctx.env;
-    InterpreterContext ctxNew = {currentEnv, ctx.module};
+    InterpreterContext ctxNew = {currentEnv, ctx.builtin, ctx.module};
 
     for (auto& statement : statements)
     {
@@ -1008,8 +1131,9 @@ RuntimeValue constructor(StructType* type, vector<RuntimeValue> args)
         {
             fields[type->fieldNames[i]] = args[i];
         }
+        return std::make_shared<StructInstance>(type, fields);
     }
-    return std::make_shared<StructInstance>(type, fields);
+    throw std::runtime_error("Constructor arguments arity error");
 }
 
 RuntimeValue constructor(EnumVariantReference typeRef, vector<RuntimeValue> args)
@@ -1064,6 +1188,20 @@ EvalResult FunctionCallNode::evaluateNode(InterpreterContext& ctx) const
                                    .kind = ad.kind, .identifier = ad.identifier, .currentLine = line,
                                    .expected = ad.expected, .actual = ad.actual,
                                    .variadic = ad.variadic
+                               }, stackTrace);
+        }
+        catch (AssertionError)
+        {
+            throw RuntimeError("assertion failure", {
+                                   .category = ErrorCategory::AssertionError, .kind = ErrorKind::AssertionFailure,
+                                   .currentLine = line
+                               }, stackTrace);
+        }
+        catch (const PanicError& pe)
+        {
+            throw RuntimeError("panic abort", {
+                                   .category = ErrorCategory::PanicError, .kind = ErrorKind::PanicAbort,
+                                   .identifier = pe.msg, .currentLine = line
                                }, stackTrace);
         }
         stackTrace.pop_back();
@@ -1216,13 +1354,13 @@ EvalResult TryCatch::evaluateNode(InterpreterContext& ctx) const
 {
     try
     {
-        InterpreterContext localCtx = InterpreterContext(std::make_shared<Environment>(), ctx.module);
+        InterpreterContext localCtx = InterpreterContext(std::make_shared<Environment>(), ctx.builtin, ctx.module);
         localCtx.env->parent = ctx.env;
         tryStatement->evaluateNode(localCtx);
     }
     catch (const ThrowSignal& e)
     {
-        InterpreterContext localCtx = InterpreterContext(std::make_shared<Environment>(), ctx.module);
+        InterpreterContext localCtx = InterpreterContext(std::make_shared<Environment>(), ctx.builtin, ctx.module);
         localCtx.env->parent = ctx.env;
         localCtx.env->declare(catches[0].name, VariableInfo(e.val, 0));
         catches[0].blockStatement->evaluateNode(localCtx);
@@ -1238,29 +1376,7 @@ EvalResult ImportNode::evaluateNode(InterpreterContext& ctx) const
 {
     if (isStdLib)
     {
-        string stdLibIdentifier = std::format("std.{}", file);
-        auto itr = ctx.module->loadedModules.find(stdLibIdentifier);
-        if (itr == ctx.module->loadedModules.end())
-        {
-            auto moduleCtx = InterpreterContext(std::make_shared<Environment>(), ctx.module);
-            try
-            {
-                ctx.module->loadedModules.insert({stdLibIdentifier, loadStdlib(file, moduleCtx)});
-            }
-            catch (UndefinedVariable)
-            {
-                throw RuntimeError("no stdlib with given module name", {
-                                       .category = ErrorCategory::ImportError, .kind = ErrorKind::ModuleNotFound,
-                                       .identifier = file, .primary = "std", .currentLine = line
-                                   }, stackTrace);
-            }
-            moduleCtx.env->parent = ctx.env;
-            moduleCtx.workingDir = ctx.workingDir;
-            // ctx.module->loadedModules[stdLibIdentifier]->evaluateNode(moduleCtx);
-            ctx.env->declare(alias, {
-                                 std::make_shared<Module>(moduleCtx.env, alias), line
-                             });
-        }
+        importStdlibModule(file, alias, ctx);
         return {false};
     }
     const string filePath = std::format("{}/{}", ctx.workingDir, file);
@@ -1286,14 +1402,21 @@ EvalResult ImportNode::evaluateNode(InterpreterContext& ctx) const
     auto itr = ctx.module->loadedModules.find(filePath);
     if (itr == ctx.module->loadedModules.end())
     {
-        ctx.module->loadedModules.insert({filePath, std::move(program)});
-        auto moduleCtx = InterpreterContext(std::make_shared<Environment>(), ctx.module);
-        moduleCtx.env->parent = ctx.env;
+        ctx.module->loadedModules.insert({filePath, ModuleCtx{}});
+        auto moduleCtx = InterpreterContext(std::make_shared<Environment>(), ctx.builtin, ctx.module);
+        moduleCtx.env->parent = ctx.builtin;
+        moduleCtx.currentFile = file;
         moduleCtx.workingDir = ctx.workingDir;
-        ctx.module->loadedModules[filePath]->evaluateNode(moduleCtx);
+        program->evaluateNode(moduleCtx);
+        ctx.module->loadedModules[filePath] = ModuleCtx{std::move(program), moduleCtx.env};
         ctx.env->declare(alias, {
                              std::make_shared<Module>(moduleCtx.env, alias), line
                          });
+        cout << "Variable " << alias << "declared in env of " << ctx.currentFile << "\n";
+    }
+    else
+    {
+        ctx.env->declare(alias, {std::make_shared<Module>(ctx.module->loadedModules[filePath].env, alias), line});
     }
     ctx.currentFile = parentFile;
     return {false};
@@ -1307,7 +1430,8 @@ void ImportNode::debugPrint(int indentLevel) const
 
 void terminateWithNL(string description, std::ostream& os)
 {
-    if (description == "Declaration" || description == "ExpressionStatement" || description == "Continue" || description
+    if (description == "Declaration" || description == "ExpressionStatement" || description == "Continue" ||
+        description
         == "Break" || description == "Return")
         os << ";\n";
     else os << "\n\n";
@@ -1315,7 +1439,8 @@ void terminateWithNL(string description, std::ostream& os)
 
 void terminateLine(string description, std::ostream& os)
 {
-    if (description == "Declaration" || description == "ExpressionStatement" || description == "Continue" || description
+    if (description == "Declaration" || description == "ExpressionStatement" || description == "Continue" ||
+        description
         == "Break" || description == "Return")
         os << ";";
 }
@@ -1429,6 +1554,10 @@ void BinaryNode::format(FormatContext& ctx) const
     left->format(ctx);
     ctx.os << " " << getSymbolForOp(op.type) << " ";
     right->format(ctx);
+}
+
+void IsNode::format(FormatContext& ctx) const
+{
 }
 
 void AssignmentNode::format(FormatContext& ctx) const
@@ -1703,6 +1832,20 @@ void TupleType::format(FormatContext& ctx) const
             ctx.os << ", ";
     }
     ctx.os << "]";
+}
+
+void MapType::format(FormatContext& ctx) const
+{
+    ctx.os << "Map[";
+    key->format(ctx);
+    ctx.os << ", ";
+    value->format(ctx);
+    ctx.os << "]";
+}
+
+void ProgramDefinedType::format(FormatContext& ctx) const
+{
+    cout << typeName;
 }
 
 void UnionType::format(FormatContext& ctx) const

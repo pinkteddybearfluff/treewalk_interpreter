@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="author" content="Ayush P" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="The Laven Programming Language provides a way to get information about Laven Language, an interpreted language worked made as a hobby."
+    />
+    <!-- <link rel="icon" href="/favicon.ico" type="image/x-icon" /> -->
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/prism.css" />
+    <title>Laven Programming Language</title>
+  </head>
+  <body>
+    <div id="sidebar"></div>
+    <div class="content">
+      <main class="main-content">
+        <h1>Guide to using Laven Language</h1>
+        <div class="item1">
+          <h2>Basic Array usage</h2>
+          <p>
+            Arrays in Laven are dynamically sized. The elements in array are
+            stored sequentially in memory.
+          </p>
+          <p>
+            Since Arrays in Laven are dynamically sized, it means that elements
+            can be added to or removed from the Array.
+          </p>
+          <p>Example code for basic usage with array</p>
+          <pre
+            class="line-numbers"
+          ><code class = "language-rust">let arr = [2,3,5,7];
+
+//Add 11 to the end of array
+arr.push(11);
+//Prints: [2, 3, 5, 7, 11]
+println(arr);
+
+//Remove element from the end of array
+arr.pop();
+//Prints: [2, 3, 5, 7]
+println(arr);
+
+//Get size of or number of elements in array, Prints: 4
+println(arr.size());
+
+//Remove element from the start of array
+arr.popFront();
+//Prints: [3, 5, 7]
+println(arr);</code></pre>
+          <p>
+            Unlike primitive types which are stored by value, Arrays are stored
+            as a reference. This might lead to unexpected behavior for some such
+            a the behavior documented below.
+          </p>
+          <p>Example: (compound types)</p>
+          <pre
+            class="line-numbers"
+          ><code class="language-rust">//Array [1, 2, 3, 4] is created and assigns reference of this Array to arr
+//as if arr is alias to Array [1, 2, 3, 4]
+let arr = [1, 2, 3, 4];
+
+//Assign arr to list;
+let list = arr;
+//Now list and arr point/reference to same Array [1, 2, 3, 4];
+//Assign first element of list to 100
+list[0] = 100;
+//Since list and arr reference the same Array [1, 2, 3, 4]
+//changing first element of list also changes the first element of arr
+
+//Prints: arr = [100, 2, 3, 4]
+println("arr =", arr);</code></pre>
+        </div>
+      </main>
+    </div>
+    <script src="../../scripts/prism.js"></script>
+    <script>
+      fetch("../../templates/sidebar.html")
+        .then((response) => response.text())
+        .then((data) => {
+          document.getElementById("sidebar").innerHTML = data;
+        });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,11 @@
+let num1 = 5;
+let num2 = 21;
+
+//Assign num1 to num2
+num2 = num1;
+
+//Assign num1 to 16
+num1 = 16;
+
+//Prints: num1 = 16 , num2 = 5
+println("num1 =" , num1 , ", num2 =" , num2);

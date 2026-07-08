@@ -1,5 +1,0 @@
-import "string.som" as string
-
-println("this is test.som");
-
-string.main();

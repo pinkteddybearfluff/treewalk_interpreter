@@ -12,7 +12,7 @@ using std::string;
 enum class ErrorCategory
 {
     NameError, ZeroDivisionError, TypeError, RedeclarationError, IndexError, ArityError, ValueError, RecursionError,
-    AttributeError, ImportError, UninitializedError
+    AttributeError, ImportError, UninitializedError, AssertionError, PanicError
 };
 
 
@@ -55,7 +55,13 @@ enum class ErrorKind
     ModuleNotFound,
 
     //UnintializedError
-    UninitializedVariable
+    UninitializedVariable,
+
+    //AssertionError
+    AssertionFailure,
+
+    //PanicError
+    PanicAbort,
 };
 
 string getErrorCategoryString(ErrorCategory category);
@@ -125,5 +131,15 @@ class UnintializedVariable
 
 class InvalidType
 {
+};
+
+class AssertionError
+{
+};
+
+class PanicError
+{
+public:
+    string msg;
 };
 #endif //INTERPRETER_RUNTIMEERROR_H

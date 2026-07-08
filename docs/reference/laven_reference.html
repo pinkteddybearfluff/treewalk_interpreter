@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="author" content="Ayush P" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="The Laven Programming Language provides a way to get information about Laven Language, an interpreted language worked made as a hobby."
+    />
+    <!-- <link rel="icon" href="/favicon.ico" type="image/x-icon" /> -->
+    <link rel="stylesheet" href="/css/styles.css" />
+    <link rel="stylesheet" href="/css/prism.css" />
+    <link rel="stylesheet" href="/css/stylesRef.css" />
+    <title>Laven Programming Language</title>
+  </head>
+  <body>
+    <div id="sidebar"></div>
+    <div class="content">
+      <main class="main-content">
+        <h1>Laven Reference</h1>
+        <h2>Keywords</h2>
+        <div class="keywords">
+          <code class="language-rust">let</code>
+          <code class="language-rust">if</code>
+          <code class="language-rust">else</code>
+          <code class="language-rust">while</code>
+          <code class="language-rust">for</code>
+          <code class="language-rust">match</code>
+          <code class="language-rust">continue</code>
+          <code class="language-rust">break</code>
+          <code class="language-rust">fn</code>
+          <code class="language-rust">return</code>
+          <code class="language-rust">true</code>
+          <code class="language-rust">false</code>
+          <code class="language-rust">null</code>
+          <code class="language-rust">as</code>
+          <code class="language-rust">in</code>
+          <code class="language-rust">is</code>
+          <code class="language-rust">import</code>
+          <code class="language-rust">enum</code>
+          <code class="language-rust">struct</code>
+          <code class="language-rust">try</code>
+          <code class="language-rust">catch</code>
+          <code class="language-rust">throw</code>
+        </div>
+      </main>
+    </div>
+    <script src="../scripts/prism.js"></script>
+
+    <script>
+      fetch("/templates/referenceSidebar.html")
+        .then((response) => response.text())
+        .then((data) => (document.getElementById("sidebar").innerHTML = data));
+    </script>
+  </body>
+</html>

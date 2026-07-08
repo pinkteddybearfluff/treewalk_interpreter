@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="author" content="Ayush P" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="The Laven Programming Language provides a way to get information about Laven Language, an interpreted language worked made as a hobby."
+    />
+    <!-- <link rel="icon" href="/favicon.ico" type="image/x-icon" /> -->
+    <link rel="stylesheet" href="/css/styles.css" />
+    <link rel="stylesheet" href="/css/prism.css" />
+    <title>Laven Programming Language</title>
+  </head>
+  <body>
+    <div id="sidebar"></div>
+
+    <div class="content">
+      <main class="main-content line-numbers">
+        <h1>Enums</h1>
+        <p>
+          Enums in Laven allow you to declare a type that can that can represent
+          one of the several different variants.
+        </p>
+        <p>
+          The enum variant can just be constant values by themselves or store
+          value in themself.
+        </p>
+        <p>Example of basic enum.</p>
+        <pre><code class="language-rust">
+//Define new program defined type with type name Color
+enum Color{
+    Red,
+    Blue,
+    Green,
+    Black,
+    Lavender,
+}
+
+let color = Color.Lavender;
+
+//Prints: Color.Lavender
+println(color);
+
+</code></pre>
+        <p>
+          Enum variant can have fields which store values similar to that of
+          Rust.
+        </p>
+        <p>Example of Enum variant with fields.</p>
+        <pre><code class="language-rust">
+//Define new program-defined type with type name Color
+enum Color{
+    RGB(r,g,b),
+    HSL(h, s, l),
+    HSV(h, s, v),
+    Hex(value),
+}
+
+let lavender = Color.RGB(211,211,255);
+let crimsonRed = Color.HSL(0,68,42);
+let cobaltBlue = Color.Hex("#0047AB");
+
+//Prints: Color.RGB(211, 211, 255) Color.HSL(0, 68, 42) Color.Hex(#0047AB)
+println(lavender, crimsonRed, cobaltBlue);
+
+//Access individual values: 
+//Prints: 211 211 255
+println(lavender.r,lavender.g,lavender.b);
+//Prints: #0047AB
+println(cobaltBlue.value);</code></pre>
+        <h2>The is Expression.</h2>
+        <p>
+          In the above example of enum Color type, we might not know if say, the
+          color lavender is defined as Color.RGB or Color.Hex or something else.
+          In such case, accessing any of the fields can cause error.
+        </p>
+        <pre><code class = "language-rust">
+//Error lavender doesn't have h, s, l as it was defined as a Color.RGB
+println(lavender.h, lavender.s, lavender.l);</code></pre>
+        <p>In such situations we can use the <strong>is</strong> expression.</p>
+        <p>Example using the <strong>is</strong> expression.</p>
+        <pre><code class="language-rust">
+if (lavender is Color.RGB){
+    print("lavender was defined as RGB ");
+    println(lavender.r, lavender.g, lavender.b);
+}else if (lavender is Color.HSL){
+    print("lavender was defined as HSL ");
+    println(lavender.h, lavender.s, lavender.l);
+}else if (lavender is Color.HSV){
+    print("lavender was defined as HSV ");
+    println(lavender.h, lavender.s, lavender.v);
+}else {
+    print("lavender was defined as Hex ");
+    println(lavender.value);
+}
+//Output: lavender was defined as RGB 211 211 255</code></pre>
+      </main>
+    </div>
+
+    <script src="/scripts/prism.js"></script>
+    <script>
+      fetch("/templates/sidebar.html")
+        .then((response) => response.text())
+        .then((data) => {
+          document.getElementById("sidebar").innerHTML = data;
+        });
+    </script>
+  </body>
+</html>

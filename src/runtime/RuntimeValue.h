@@ -29,10 +29,12 @@ public:
     {
     }
 
-    RuntimeValue& getMember(const std::string& memberName);
-    const RuntimeValue& getMember(const std::string& memberName) const;
+    // RuntimeValue& getMember(const std::string& memberName);
+    bool hasMember(const std::string& memberName) const;
+    RuntimeValue getMember(const std::string& memberName) const;
 
     string getName() const { return name; }
+    shared_ptr<Environment> getEnv() { return env; }
 
 private:
     shared_ptr<Environment> env;
@@ -101,7 +103,7 @@ protected:
 void validateArity(string identifier, int expectedArgs, int actualArgs, bool variadic = false);
 
 
-void printRuntimeValue(const RuntimeValue& val);
+void printRuntimeValue(std::ostream&, const RuntimeValue& val);
 
 struct Uninitialized
 {
@@ -163,6 +165,8 @@ struct EnumValue
     EnumType* type;
     int variantIndex;
     vector<RuntimeValue> fields;
+    bool hasMemberField(string mName);
+    RuntimeValue getMemberValue(string mName);
 };
 
 struct TypeReference

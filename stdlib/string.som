@@ -1,12 +1,82 @@
-
-fn main() {
-    println("ni hao");
-    for (let i = 0; i < 1; i += 1) {
-        if (1) {
-            println("konichiwa");
-        }
-
+fn concat(...strArr) -> str {
+    let res = "";
+    for( let str in strArr){
+        res = res + stringify(str);
     }
-
+    return res;
 }
 
+fn contains?(str, searchString) -> bool {
+    if(searchString.length() == 0)return 0;
+        for(let i =0; i + searchString.length() <= str.length(); i+=1){
+            if(searchString == str.slice(i, i + searchString.length()))
+                return true;
+        }
+    return false;
+}
+
+fn format(str, ...replacements) -> str {
+    let res = str;
+    for(let i = 0; i< replacements.size(); i += 1){
+        println(res);
+        res = res.replace("{}", replacements[i]);
+    }
+    return res;
+}
+
+fn indexOf(str, searchString) -> number {
+    if(searchString.length() == 0)return 0;
+    for(let i =0; i + searchString.length() <= str.length(); i+=1){
+        if(searchString == str.slice(i, i + searchString.length()))
+            return i;
+    }
+    return -1;
+}
+
+fn isEmpty?(str) -> bool {
+    return len(str) == 0;
+}
+
+fn length(str) -> number {
+    return len(str);
+}
+
+fn replace(str, pattern, replacement) -> str {
+    let i = str.indexOf(pattern);
+    if(i != -1)
+        return concat(str.slice(0, i), replacement, str.slice(i+ length(pattern)));
+    return str;
+}
+
+fn size(str) -> number {
+    return len(str);
+}
+
+fn slice(str, start = 0, end = str.length()) -> str {
+    let substr = "";
+    if (start < 0){
+        start = str.length() + start;
+        assert(start >= 0);
+    }
+    if(end < 0){
+        end = str.length() + end;
+        assert(end>=0);
+    }
+    assert(end >= start);
+    for(let i = start; i< end; i+= 1)
+        substr += str[i];
+    return substr;
+}
+
+fn split(str, separator) -> Array[str] {
+    let arr = [];
+    let s = 0;
+    for(let i = 0; i < str.length(); i += 1){
+        if(str[i] == separator){
+            arr.push(str.slice( s, i));
+            s = i + 1;
+        }
+    }
+    arr.push(str.slice(s, str.length()));
+    return arr;
+}

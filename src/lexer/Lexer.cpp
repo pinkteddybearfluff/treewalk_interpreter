@@ -10,6 +10,14 @@ string TokenStream::getVarName()
             if (ch != EOF)
                 name += static_cast<char>(ch);
             ch = is.get();
+            if (ch == '!' || ch == '?')
+            {
+                name += static_cast<char>(ch);
+                if (isalnum(is.peek()))
+                    throw LexerError(std::format("{} can only appear at the end of identifier not in between.",
+                                                 static_cast<char>(ch)), getLineNo());
+                break;
+            }
             if (!isalnum(ch) && ch != '_')
             {
                 is.unget();
@@ -62,11 +70,11 @@ void TokenStream::consumeMLComments()
     is.unget();
 }
 
-string TokenStream::getString()
+string TokenStream::getString(char quoteType)
 {
     string str;
     int ch = is.get();
-    while (ch != '"' && ch != EOF)
+    while (ch != quoteType && ch != EOF)
     {
         str += static_cast<char>(ch);
         ch = is.get();
@@ -154,11 +162,11 @@ Token TokenStream::readFromStream()
         }
     }
 
-    if (ch == '"')
+    if (ch == '\'' || ch == '"')
     {
         string str;
-        str = getString();
-        if (is.get() != '"') throw LexerError{"expected '\"' for string termination", lineNo};
+        str = getString(ch);
+        if (is.get() != ch) throw LexerError{std::format("expected '{}' for string termination", ch), lineNo};
         return Token{.type = TokenType::String, .literal = str, .line = lineNo};
     }
     if (!is)
@@ -196,6 +204,7 @@ Token TokenStream::readFromStream()
         if (name == "catch") return Token{.type = TokenType::Catch, .line = lineNo};
         if (name == "throw") return Token{.type = TokenType::Throw, .line = lineNo};
         if (name == "enum") return Token{.type = TokenType::Enum, .line = lineNo};
+        if (name == "is") return Token{.type = TokenType::Is, .line = lineNo};
         return Token{.type = TokenType::Identifier, .name = name, .line = lineNo};
     }
     return charToToken(ch);
@@ -530,6 +539,18 @@ string getStringForType(TokenType type)
         return "DotDot";
     case TokenType::DotDotEqual:
         return "DotDotEqual";
+    case TokenType::Struct:
+        return "Struct";
+    case TokenType::Try:
+        return "Try";
+    case TokenType::Catch:
+        return "Catch";
+    case TokenType::Throw:
+        return "Throw";
+    case TokenType::Enum:
+        return "Enum";
+    case TokenType::Is:
+        return "Is";
     }
 }
 
@@ -574,5 +595,7 @@ string getSymbolForOp(TokenType op)
         return "||";
     case TokenType::Modulo:
         return "%";
+    case TokenType::Not:
+        return "!";
     }
 }

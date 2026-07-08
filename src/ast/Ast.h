@@ -248,6 +248,7 @@ class StructNode : public StatementNode
 {
 public:
     EvalResult evaluateNode(InterpreterContext& ctx) const override;
+    string description() const override { return "struct"; }
     void debugPrint(int indentLevel) const override;
     void format(FormatContext& ctx) const override;
     void registerInEnv(InterpreterContext& ctx) const;
@@ -308,6 +309,27 @@ protected:
     int line;
 };
 
+class IsNode : public ExpressionNode
+{
+public:
+    void debugPrint(int indentLevel) const override;
+    void format(FormatContext& ctx) const override;
+    EvalResult evaluateNode(InterpreterContext& ctx) const override;
+
+    IsNode(unique_ptr<ExpressionNode> value, unique_ptr<ExpressionNode> enumVariant, int lineNo) : value{
+            std::move(value)
+        },
+        enumVariant{std::move(enumVariant)}, line{lineNo}
+    {
+    }
+
+private:
+    unique_ptr<ExpressionNode> value;
+    unique_ptr<ExpressionNode> enumVariant;
+
+protected:
+    int line;
+};
 
 class BinaryNode : public ExpressionNode
 {
@@ -963,6 +985,36 @@ public:
 
 private:
     unique_ptr<TypeNode> nestedType;
+};
+
+
+class MapType : public TypeNode
+{
+public:
+    void format(FormatContext& ctx) const override;
+    void debugPrint(int indentLevel) const override;
+
+    MapType(unique_ptr<TypeNode> key, unique_ptr<TypeNode> value) : key{std::move(key)}, value{std::move(value)}
+    {
+    }
+
+private:
+    unique_ptr<TypeNode> key;
+    unique_ptr<TypeNode> value;
+};
+
+class ProgramDefinedType : public TypeNode
+{
+public:
+    void debugPrint(int indentLevel) const override;
+    void format(FormatContext& ctx) const override;
+
+    explicit ProgramDefinedType(string name) : typeName{name}
+    {
+    }
+
+private:
+    string typeName;
 };
 
 class TupleType : public TypeNode

@@ -1,1 +1,2 @@
-a: list[list[int]];
+str = ["haell", "aya"]
+print(str)

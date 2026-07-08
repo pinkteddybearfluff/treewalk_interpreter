@@ -1,4 +1,4 @@
-fn contains(arr, x){
+fn contains?(arr, x){
     let l = len(arr);
     for(let i = 0;i<l; i += 1)
         if ( arr[i] == x)
@@ -16,7 +16,16 @@ fn reverse(arr){
     return arr;
 }
 
-fn slice(arr, start, end){
+fn slice(arr, start = 0, end = arr.size()){
+    if(start<0){
+        start += arr.size();
+    }
+    if(end<0){
+        end += arr.size();
+    }
+    if(start>end){
+        panic("start must be less that end");
+    }
     let res = [];
     for(let i = start;i<end;i+=1){
         push(res,arr[i]);
@@ -72,10 +81,10 @@ fn sort(arr,cmp){
     let left_sub = [];
     let right_sub = [];
     for(let i = 1; i < l; i += 1){
-        if(cmp(pivot,arr[i]))
-            push(right_sub, arr[i]);
+        if(cmp(pivot,arr[i])>0)
+            left_sub.push(arr[i]);
         else
-            push(left_sub, arr[i]);
+            right_sub.push(arr[i]);
         
     }
     return concat(sort(left_sub,cmp),pivot,sort(right_sub,cmp));
@@ -84,3 +93,8 @@ fn sort(arr,cmp){
 fn size(arr){
     return len(arr);
 }
+
+fn isEmpty?(arr){
+    return len(arr) == 0;
+}
+

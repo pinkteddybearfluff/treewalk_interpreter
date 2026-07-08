@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="author" content="Ayush P" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="The Laven Programming Language provides a way to get information about Laven Language, an interpreted language worked made as a hobby."
+    />
+    <!-- <link rel="icon" href="/favicon.ico" type="image/x-icon" /> -->
+    <link rel="stylesheet" href="/css/styles.css" />
+    <link rel="stylesheet" href="/css/prism.css" />
+    <title>Laven Programming Language</title>
+  </head>
+  <body>
+    <div id="sidebar"></div>
+    <div class="content">
+      <main class="main-content">
+        <h1>Structs</h1>
+        <p>
+          Struct short for structure is a way to define your own data structure
+          or data type. It has members which can store data and member functions
+          which operate on the struct.
+        </p>
+        <p>Example of struct</p>
+        <pre class="line-numbers"><code class = "language-rust">
+//Declare Point type
+struct Point{
+    x,
+    y,  //trailing commas allowed
+}
+
+//Create new instance/object of Point with x = 1, y = 2
+let p1 = Point(1,4);
+
+//Prints: x:1
+//        y:4
+println(p1);
+      </code></pre>
+        <p>
+          We can access the members from the struct type using the dot operator
+          ( . )
+        </p>
+        <p>Example of member access</p>
+        <pre class="line-numbers"><code class = "language-rust">//Prints: 1 4
+println(p1.x, p1.y);</code></pre>
+        <p>
+          Structs can also have methods defined inside the type declaration
+          which can operate on them.
+        </p>
+        <p>
+          Example of structs with methods: (Ignore this example if you aren't
+          familiar with functions)
+        </p>
+        <pre class="line-numbers"><code class = "language-rust">
+//Ignore for now. Allows us to use m.sqrt() function
+import math as m
+
+//Declares Vector2 type
+struct Vector2{
+    x,
+    y,
+
+    //method to return magnitude
+    fn magnitude(self){
+        //returns square root of ( x squared + y squared )
+        return m.sqrt(self.x * self.x + self.y * self.y);
+    }
+}
+
+//Creates an Instance of Vector2(1,2), v now references this instance/ Vector2 object
+let v = Vector2(3,4);
+
+//Prints: 5
+println(v.magnitude());
+      </code></pre>
+
+        <p>
+          Once again similar to arrays and maps the struct object just stores
+          the reference to the struct instead of value.
+        </p>
+        <p>Example of reference semantics</p>
+        <pre class="line-numbers"><code class="language-rust">
+let v = Vector2(3,4);
+
+//Assign v to v2. Now v2 also refers to/ points to the same Vector2 instance
+let v2 = v;
+
+//Assign 5 to member x of v2
+v2.x = 5;
+
+//Prints: x: 5
+//        y: 4
+println(v);
+      </code></pre>
+      </main>
+    </div>
+    <script src="/scripts/prism.js"></script>
+    <script>
+      fetch("/templates/sidebar.html")
+        .then((response) => response.text())
+        .then((data) => {
+          document.getElementById("sidebar").innerHTML = data;
+        });
+    </script>
+  </body>
+</html>

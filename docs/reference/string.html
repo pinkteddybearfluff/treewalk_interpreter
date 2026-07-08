@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="author" content="Ayush P" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="The Laven Programming Language provides a way to get information about Laven Language, an interpreted language worked made as a hobby."
+    />
+    <!-- <link rel="icon" href="/favicon.ico" type="image/x-icon" /> -->
+    <link rel="stylesheet" href="/css/styles.css" />
+    <link rel="stylesheet" href="/css/prism.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,300..800;1,300..800&display=swap"
+      rel="stylesheet"
+    />
+    <title>Laven Programming Language</title>
+  </head>
+  <body>
+    <div id="sidebar"></div>
+    <div class="content">
+      <main class="main-content line-numbers">
+        <h1>String</h1>
+        <h2>concat()</h2>
+        <h2>contains?()</h2>
+        <h2>format()</h2>
+        <h2>indexOf()</h2>
+        <h2>isEmpty?()</h2>
+        <h2>length()</h2>
+        <h2>replace()</h2>
+        <h2>size()</h2>
+        <h2>slice()</h2>
+        <h2>split()</h2>
+      </main>
+    </div>
+    <script src="../scripts/prism.js"></script>
+    <script>
+      fetch("/templates/referenceSidebar.html")
+        .then((response) => response.text())
+        .then((data) => (document.getElementById("sidebar").innerHTML = data));
+    </script>
+  </body>
+</html>

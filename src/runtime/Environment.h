@@ -36,7 +36,6 @@ struct Environment
     std::map<string, VariableInfo> variables;
     std::map<string, std::unique_ptr<Type>> types;
     shared_ptr<Environment> parent;
-
     bool hasVariable(string name);
     VariableInfo& getReference(const string& identifier);
     void declare(string name, VariableInfo data);
@@ -45,14 +44,21 @@ struct Environment
     Type* getType(string name);
 };
 
+struct ModuleCtx
+{
+    std::unique_ptr<ProgramNode> ast;
+    std::shared_ptr<Environment> env;
+};
+
 struct ModuleManager
 {
-    map<string, std::unique_ptr<ProgramNode>> loadedModules;
+    map<string, ModuleCtx> loadedModules;
 };
 
 struct InterpreterContext
 {
     shared_ptr<Environment> env;
+    shared_ptr<Environment> builtin;
     shared_ptr<ModuleManager> module;
     string currentFile;
     string workingDir;
