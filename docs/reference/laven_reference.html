@@ -9,13 +9,34 @@
       content="The Laven Programming Language provides a way to get information about Laven Language, an interpreted language worked made as a hobby."
     />
     <!-- <link rel="icon" href="/favicon.ico" type="image/x-icon" /> -->
-    <link rel="stylesheet" href="/css/styles.css" />
-    <link rel="stylesheet" href="/css/prism.css" />
-    <link rel="stylesheet" href="/css/stylesRef.css" />
-    <title>Laven Programming Language</title>
+    <link rel="stylesheet" href="../css/styles.css" />
+    <link rel="stylesheet" href="../css/prism.css" />
+    <link rel="stylesheet" href="../css/stylesRef.css" />
+    <title>Laven Reference</title>
   </head>
   <body>
-    <div id="sidebar"></div>
+    <div id="sidebar">
+      <nav class="sidebar">
+        <ol>
+          <li><a href="../laven_reference.html">Documentation</a></li>
+          <li>
+            <a href="../array_reference.html">Array</a>
+          </li>
+          <li>
+            <a href="../maps.html">Map</a>
+          </li>
+          <li>
+            <a href="../string.html">String</a>
+          </li>
+          <li>
+            <a href="../math.html">Math</a>
+          </li>
+          <li>
+            <a href="../stdlib.html">Standard library</a>
+          </li>
+        </ol>
+      </nav>
+    </div>
     <div class="content">
       <main class="main-content">
         <h1>Laven Reference</h1>
@@ -48,11 +69,5 @@
       </main>
     </div>
     <script src="../scripts/prism.js"></script>
-
-    <script>
-      fetch("/templates/referenceSidebar.html")
-        .then((response) => response.text())
-        .then((data) => (document.getElementById("sidebar").innerHTML = data));
-    </script>
   </body>
 </html>
