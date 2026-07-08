@@ -9,12 +9,78 @@
       content="The Laven Programming Language provides a way to get information about Laven Language, an interpreted language worked made as a hobby."
     />
     <!-- <link rel="icon" href="/favicon.ico" type="image/x-icon" /> -->
-    <link rel="stylesheet" href="/css/styles.css" />
-    <link rel="stylesheet" href="/css/prism.css" />
-    <title>Laven Programming Language</title>
+    <link rel="stylesheet" href="../../css/styles.css" />
+    <link rel="stylesheet" href="../../css/prism.css" />
+    <title>Maps - Laven Guide</title>
   </head>
   <body>
-    <div id="sidebar"></div>
+    <div id="sidebar">
+      <nav class="sidebar">
+        <ol>
+          <li><a href="../learn-laven.html">Hello world!</a></li>
+          <li>
+            <a href="../learn-laven.html"> Primitive types</a>
+            <ol>
+              <li>
+                <a href="../primitive-types/arrays.html">Arrays</a>
+              </li>
+              <li>
+                <a href="../primitive-types/maps.html">Maps</a>
+              </li>
+            </ol>
+          </li>
+          <li>
+            <a href="../learn-laven.html">Program Defined/Custom types</a>
+            <ol>
+              <li>
+                <a href="../program-defined-types/structs.html">Structs</a>
+              </li>
+              <li>
+                <a href="../program-defined-types/enums.html">Enums</a>
+              </li>
+            </ol>
+          </li>
+          <li>
+            <a href="../variable-semantics.html">Variable Semantics</a>
+          </li>
+          <li>
+            <a href="../type-annotations.html">Type Annotations</a>
+          </li>
+          <li>
+            <a href="../expressions.html">Expressions</a>
+          </li>
+          <li>
+            <a href="../control-flow/control-flow.html">Control Flow</a>
+            <ol>
+              <li>
+                <a href="../control-flow/if-else.html">if/else</a>
+              </li>
+              <li>
+                <a href="">while</a>
+              </li>
+              <li>
+                <a href="">for</a>
+              </li>
+              <li>
+                <a href="">for-range</a>
+              </li>
+              <li>
+                <a href="">match</a>
+              </li>
+            </ol>
+          </li>
+          <li>
+            <a href="">Functions</a>
+          </li>
+          <li>
+            <a href="">Modules</a>
+          </li>
+          <li>
+            <a href="">Error handling</a>
+          </li>
+        </ol>
+      </nav>
+    </div>
 
     <div class="content">
       <main class="main-content">
@@ -125,13 +191,6 @@ println("person =", person);
       </main>
     </div>
 
-    <script src="/scripts/prism.js"></script>
-    <script>
-      fetch("/templates/sidebar.html")
-        .then((response) => response.text())
-        .then((data) => {
-          document.getElementById("sidebar").innerHTML = data;
-        });
-    </script>
+    <script src="../../scripts/prism.js"></script>
   </body>
 </html>

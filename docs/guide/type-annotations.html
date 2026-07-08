@@ -11,24 +11,84 @@
     <!-- <link rel="icon" href="/favicon.ico" type="image/x-icon" /> -->
     <link rel="stylesheet" href="../css/styles.css" />
     <link rel="stylesheet" href="../css/prism.css" />
-    <title>Laven Programming Language</title>
+    <title>Type Annotations - Laven Guide</title>
   </head>
   <body>
-    <div id="sidebar"></div>
+    <div id="sidebar">
+      <nav class="sidebar">
+        <ol>
+          <li><a href="/guide/learn-laven.html">Hello world!</a></li>
+          <li>
+            <a href="/guide/learn-laven.html"> Primitive types</a>
+            <ol>
+              <li>
+                <a href="/guide/primitive-types/arrays.html">Arrays</a>
+              </li>
+              <li>
+                <a href="/guide/primitive-types/maps.html">Maps</a>
+              </li>
+            </ol>
+          </li>
+          <li>
+            <a href="/guide/learn-laven.html">Program Defined/Custom types</a>
+            <ol>
+              <li>
+                <a href="/guide/program-defined-types/structs.html">Structs</a>
+              </li>
+              <li>
+                <a href="/guide/program-defined-types/enums.html">Enums</a>
+              </li>
+            </ol>
+          </li>
+          <li>
+            <a href="/guide/variable-semantics.html">Variable Semantics</a>
+          </li>
+          <li>
+            <a href="/guide/type-annotations.html">Type Annotations</a>
+          </li>
+          <li>
+            <a href="">Expressions</a>
+          </li>
+          <li>
+            <a href="">Control Flow</a>
+            <ol>
+              <li>
+                <a href="">if/else</a>
+              </li>
+              <li>
+                <a href="">while</a>
+              </li>
+              <li>
+                <a href="">for</a>
+              </li>
+              <li>
+                <a href="">for-range</a>
+              </li>
+              <li>
+                <a href="">match</a>
+              </li>
+            </ol>
+          </li>
+          <li>
+            <a href="">Functions</a>
+          </li>
+          <li>
+            <a href="">Modules</a>
+          </li>
+          <li>
+            <a href="">Error handling</a>
+          </li>
+        </ol>
+      </nav>
+    </div>
     <div class="content">
       <main class="main-content">
-        <h2>Type Annotations</h2>
+        <h1>Type Annotations</h1>
         <pre><code class="language-rust">Array</code></pre>
+        <h2>Under Construction</h2>
       </main>
     </div>
 
     <script src="../scripts/prism.js"></script>
-    <script>
-      fetch("/templates/sidebar.html")
-        .then((response) => response.text())
-        .then((data) => {
-          document.getElementById("sidebar").innerHTML = data;
-        });
-    </script>
   </body>
 </html>
