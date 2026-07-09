@@ -51,7 +51,7 @@ printn("ni hao", 5);
 ## Future trajectory
 
 -[ ] Better pattern matching
-- [ ] Type checking
+-[ ] Type checking
 -[ ] Bytecode VM
 -[ ] Package manager
 
