@@ -5,18 +5,21 @@
 #include <stdexcept>
 #include <iostream>
 #include "../utilities/Utilities.h"
+// #include "../visitors/EvaluateVisitor.h"
 
 using std::string;
 
+struct StackFrame;
 
 enum class ErrorCategory
 {
     NameError, ZeroDivisionError, TypeError, RedeclarationError, IndexError, ArityError, ValueError, RecursionError,
-    AttributeError, ImportError, UninitializedError, AssertionError, PanicError
+    AttributeError, ImportError, UninitializedError, AssertionError, PanicError,
+    AlreadyExistsError, KeyError,
 };
 
 
-enum class ErrorKind
+enum class ErrorCode
 {
     //NameError
     VariableUndefined,
@@ -29,6 +32,8 @@ enum class ErrorKind
     NotCallable,
     NotSubscriptable,
     NativeFunInvalidOperandType,
+    InvalidLeftOperandForIs,
+    InvalidRightOperandForIs,
 
     //ArityError
     TooFewArguments,
@@ -50,6 +55,10 @@ enum class ErrorKind
     //AttributeError
     MissingAttribute,
     InvalidReceiver,
+    StructMemberNotFound,
+    EnumMemberNotFound,
+    EnumVariantNotFound,
+    ObjectMethodNotFound,
 
     //ImportError
     ModuleNotFound,
@@ -62,6 +71,12 @@ enum class ErrorKind
 
     //PanicError
     PanicAbort,
+
+    //AlreadyExistsError
+    DuplicateMapKey,
+
+    //KeyError
+    MapKeyNotFound,
 };
 
 string getErrorCategoryString(ErrorCategory category);
@@ -69,7 +84,7 @@ string getErrorCategoryString(ErrorCategory category);
 struct Diagnostic
 {
     ErrorCategory category;
-    ErrorKind kind;
+    ErrorCode code;
 
     string identifier;
 
@@ -87,7 +102,7 @@ struct Diagnostic
 struct ArityDiagnostic
 {
     string identifier;
-    ErrorKind kind;
+    ErrorCode kind;
     int expected{-1};
     int actual{-1};
     bool variadic{false};
@@ -96,14 +111,10 @@ struct ArityDiagnostic
 class RuntimeError : public std::runtime_error
 {
 public:
-    RuntimeError(const string& msg, Diagnostic diagnostic, const std::vector<string>& stackTrace) :
-        std::runtime_error{msg},
-        diagnostic{std::move(diagnostic)}, stackTrace{stackTrace}
-    {
-    };
+    RuntimeError(const string& msg, Diagnostic diagnostic, const std::vector<StackFrame>& stackTrace);
 
     Diagnostic diagnostic;
-    std::vector<string> stackTrace;
+    std::vector<StackFrame> stackTrace;
 };
 
 void printRuntimeError(const RuntimeError& re, const string& file);

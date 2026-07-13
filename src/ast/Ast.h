@@ -13,38 +13,32 @@
 #include "../error/RuntimeError.h"
 
 constexpr bool DEBUG_AST = true;
-constexpr bool EVALUATE = true;
 
 using std::unique_ptr;
 using std::make_unique;
 using std::string;
 
+class Visitor;
+class TypeVisitor;
+class PatternVisitor;
+
 struct FormatContext;
 class FunctionDeclarationNode;
 
-struct EvalResult
-{
-    bool hasValue;
-    RuntimeValue value;
-};
 
 class TypeNode
 {
 public:
-    virtual void format(FormatContext& ctx) const = 0;
-    virtual void debugPrint(int indentLevel) const = 0;
     virtual ~TypeNode() = default;
+    virtual void accept(TypeVisitor& visitor) =0;
 };
 
 class StatementNode
 {
 public:
-    // evaluateNode only evaluates the ast and returns its result hence not mutating the ast and therefore const
-    virtual EvalResult evaluateNode(InterpreterContext& ctx) const =0;
-    virtual void format(FormatContext& ctx) const = 0;
-    virtual void debugPrint(int indentLevel) const = 0;
     virtual string description() const { return "statement"; }
     virtual ~StatementNode() = default;
+    virtual void accept(Visitor& visitor) =0;
 };
 
 
@@ -52,20 +46,19 @@ class ExpressionNode
 {
 public:
     // evaluateNode only evaluates the ast and returns its result hence not mutating the ast and therefore const
-    virtual EvalResult evaluateNode(InterpreterContext& ctx) const =0;
 
     virtual RuntimeValue& getReference(InterpreterContext& ctx)
     {
         throw std::runtime_error("Expression is not assignable");
     }
 
-    virtual void format(FormatContext& ctx) const = 0;
-    virtual void debugPrint(int indentLevel) const =0;
     virtual ~ExpressionNode() = default;
-    [[nodiscard]] virtual bool isAssignmentTarget() const { return true; };
+    [[nodiscard]] virtual bool isAssignmentTarget() const { return false; };
     [[nodiscard]] virtual bool isDeclarationTarget() const { return false; };
     [[nodiscard]] virtual string description() const { return "Expression"; };
     [[nodiscard]] virtual string getIdentifierName() const { return "has no identifier"; }
+
+    virtual void accept(Visitor& visitor) =0;
 
 protected:
     int line{0};
@@ -75,43 +68,15 @@ protected:
 class ProgramNode
 {
 public:
-    EvalResult evaluateNode(InterpreterContext& ctx) const;
-    void debugPrint(int indentLevel) const;
-
-    void format(FormatContext& ctx) const;
+    void accept(Visitor& visitor);
 
     ProgramNode(vector<unique_ptr<StatementNode>> stmts) : statements{std::move(stmts)}
     {
     };
 
-private:
     vector<unique_ptr<StatementNode>> statements;
 };
 
-class VariableNode : public ExpressionNode
-{
-public:
-    VariableNode(std::string name, int line) : identifierName{name}, line{line}
-    {
-    };
-    //evaluateNode evaluates the rhs (here gets the rvalue of identifier)
-    EvalResult evaluateNode(InterpreterContext& ctx) const override;
-    [[nodiscard]] string getIdentifierName() const override { return identifierName; };
-    //getReference gets the reference/lvalue of the identifier from the runtime environment
-    RuntimeValue& getReference(InterpreterContext& ctx) override;
-    void format(FormatContext& ctx) const override;
-
-    void debugPrint(int indentLevel) const override;
-    [[nodiscard]] bool isAssignmentTarget() const override { return true; };
-    [[nodiscard]] bool isDeclarationTarget() const override { return true; };
-    [[nodiscard]] string description() const override { return "variable"; };
-
-private:
-    string identifierName;
-
-protected:
-    int line;
-};
 
 class NumberNode : public ExpressionNode
 {
@@ -119,14 +84,9 @@ public:
     NumberNode(double v, int lineNo) : value{v}, line{lineNo}
     {
     };
-    EvalResult evaluateNode(InterpreterContext& ctx) const override;
-    void format(FormatContext& ctx) const override;
-    void debugPrint(int indentLevel) const override;
-    [[nodiscard]] bool isAssignmentTarget() const override { return false; };
-    [[nodiscard]] bool isDeclarationTarget() const override { return false; };
     [[nodiscard]] string description() const override { return "literal"; };
+    void accept(Visitor& visitor) override;
 
-private:
     double value;
 
 protected:
@@ -139,14 +99,10 @@ public:
     StringNode(string str, int lineNo) : value{str}, line{lineNo}
     {
     };
-    void format(FormatContext& ctx) const override;
-    void debugPrint(int indentLevel) const override;
-    EvalResult evaluateNode(InterpreterContext& ctx) const override;
-    [[nodiscard]] bool isDeclarationTarget() const override { return false; };
-    [[nodiscard]] bool isAssignmentTarget() const override { return false; };
     [[nodiscard]] string description() const override { return "literal"; };
 
-private:
+    void accept(Visitor& visitor) override;
+
     string value;
 
 protected:
@@ -159,20 +115,15 @@ public:
     BooleanNode(bool tv, int lineNo) : value{tv}, line{lineNo}
     {
     };
-    void format(FormatContext& ctx) const override;
-    void debugPrint(int indentLevel) const override;
-    EvalResult evaluateNode(InterpreterContext& ctx) const override;
-    [[nodiscard]] bool isDeclarationTarget() const override { return false; };
-    [[nodiscard]] bool isAssignmentTarget() const override { return false; };
     [[nodiscard]] string description() const override { return "literal"; };
 
-private:
+    void accept(Visitor& visitor) override;
+
     bool value;
 
 protected:
     int line;
 };
-
 
 class NullNode : public ExpressionNode
 {
@@ -180,14 +131,10 @@ public:
     NullNode(std::monostate null, int lineNo) : null{null}, line{lineNo}
     {
     };
-    void format(FormatContext& ctx) const override;
-    void debugPrint(int indentLevel) const override;
-    EvalResult evaluateNode(InterpreterContext& ctx) const override;
-    [[nodiscard]] bool isDeclarationTarget() const override { return false; };
-    [[nodiscard]] bool isAssignmentTarget() const override { return false; };
     [[nodiscard]] string description() const override { return "literal"; };
 
-private:
+    void accept(Visitor& visitor) override;
+
     std::monostate null;
 
 protected:
@@ -205,14 +152,10 @@ public:
     ArrayNode() : value{}
     {
     };
-    void format(FormatContext& ctx) const override;
-    void debugPrint(int indentLevel) const override;
-    EvalResult evaluateNode(InterpreterContext& ctx) const override;
-    [[nodiscard]] bool isDeclarationTarget() const override { return false; };
-    [[nodiscard]] bool isAssignmentTarget() const override { return false; };
     [[nodiscard]] string description() const override { return "literal"; };
 
-private:
+    void accept(Visitor& visitor) override;
+
     vector<std::unique_ptr<ExpressionNode>> value;
 
 protected:
@@ -228,82 +171,35 @@ struct Pair
 class MapNode : public ExpressionNode
 {
 public:
-    EvalResult evaluateNode(InterpreterContext& ctx) const override;
-    void debugPrint(int indentLevel) const override;
-    void format(FormatContext& ctx) const override;
-
     MapNode(vector<Pair> keyValExp, int lineNo) : keyValPairs{std::move(keyValExp)}
                                                   , line{lineNo}
     {
     }
 
-private:
+    void accept(Visitor& visitor) override;
+
     vector<Pair> keyValPairs;
 
 protected:
     int line;
 };
 
-class StructNode : public StatementNode
+class VariableNode : public ExpressionNode
 {
 public:
-    EvalResult evaluateNode(InterpreterContext& ctx) const override;
-    string description() const override { return "struct"; }
-    void debugPrint(int indentLevel) const override;
-    void format(FormatContext& ctx) const override;
-    void registerInEnv(InterpreterContext& ctx) const;
-
-    StructNode(string name, vector<string> fields, vector<unique_ptr<StatementNode>> methodStatement) :
-        typeName(name),
-        fieldNames{fields},
-        methodsStmt{std::move(methodStatement)}
-    {
-    }
-
-private:
-    string typeName;
-    vector<string> fieldNames;
-    vector<unique_ptr<StatementNode>> methodsStmt;
-};
-
-class EnumNode : public StatementNode
-{
-public:
-    EvalResult evaluateNode(InterpreterContext& ctx) const override;
-    void debugPrint(int indentLevel) const override;
-    void format(FormatContext& ctx) const override;
-    void registerInEnv(InterpreterContext& ctx) const;
-
-    EnumNode(string type, vector<Variant> fields) : typeName{std::move(type)}, variants{std::move(fields)}
-    {
-    }
-
-private:
-    string typeName;
-    vector<Variant> variants;
-};
-
-class IndexNode : public ExpressionNode
-{
-public:
-    IndexNode(unique_ptr<ExpressionNode> Exp, unique_ptr<ExpressionNode> iExp, int lineNo) : operand{std::move(Exp)}
-        ,
-        indexExp{std::move(iExp)}, line{lineNo}
+    VariableNode(std::string name, int line) : identifierName{name}, line{line}
     {
     };
-    void format(FormatContext& ctx) const override;
-    void debugPrint(int indentLevel) const override;
-    //evaluateNode evaluates the node of the current ast and returns rvalue
-    EvalResult evaluateNode(InterpreterContext& ctx) const override;
-    //getReference gets reference of the identifier from the environment and returns lvalue
-    RuntimeValue& getReference(InterpreterContext& ctx) override;
-    [[nodiscard]] bool isDeclarationTarget() const override { return false; };
-    [[nodiscard]] bool isAssignmentTarget() const override { return true; };
-    [[nodiscard]] string description() const override { return "array subscript"; };
+    [[nodiscard]] string getIdentifierName() const override { return identifierName; };
+    //getReference gets the reference/lvalue of the identifier from the runtime environment
 
-private:
-    unique_ptr<ExpressionNode> operand;
-    unique_ptr<ExpressionNode> indexExp;
+    [[nodiscard]] bool isAssignmentTarget() const override { return true; };
+    [[nodiscard]] bool isDeclarationTarget() const override { return true; };
+    [[nodiscard]] string description() const override { return "variable"; };
+
+    void accept(Visitor& visitor) override;
+
+    string identifierName;
 
 protected:
     int line;
@@ -312,10 +208,6 @@ protected:
 class IsNode : public ExpressionNode
 {
 public:
-    void debugPrint(int indentLevel) const override;
-    void format(FormatContext& ctx) const override;
-    EvalResult evaluateNode(InterpreterContext& ctx) const override;
-
     IsNode(unique_ptr<ExpressionNode> value, unique_ptr<ExpressionNode> enumVariant, int lineNo) : value{
             std::move(value)
         },
@@ -323,12 +215,26 @@ public:
     {
     }
 
-private:
+    void accept(Visitor& visitor) override;
+
     unique_ptr<ExpressionNode> value;
     unique_ptr<ExpressionNode> enumVariant;
 
 protected:
     int line;
+};
+
+class UnaryNode : public ExpressionNode
+{
+public:
+    UnaryNode(Token unOp, unique_ptr<ExpressionNode> n_node) : op{unOp}, child{std::move(n_node)}
+    {
+    };
+
+    void accept(Visitor& visitor) override;
+
+    Token op;
+    unique_ptr<ExpressionNode> child;
 };
 
 class BinaryNode : public ExpressionNode
@@ -338,14 +244,10 @@ public:
         : op{biOp}, left{std::move(leftNode)}, right{std::move(rightNode)}, line{lineNo}
     {
     };
-    EvalResult evaluateNode(InterpreterContext& ctx) const override;
-    void format(FormatContext& ctx) const override;
-    void debugPrint(int indentLevel) const override;
-    [[nodiscard]] bool isDeclarationTarget() const override { return false; };
-    [[nodiscard]] bool isAssignmentTarget() const override { return false; };
     [[nodiscard]] string description() const override { return "literal"; };
 
-private:
+    void accept(Visitor& visitor) override;
+
     Token op;
     unique_ptr<ExpressionNode> left;
     unique_ptr<ExpressionNode> right;
@@ -354,54 +256,26 @@ protected:
     int line;
 };
 
-
-class AssignmentNode : public ExpressionNode
+class IndexNode : public ExpressionNode
 {
 public:
-    AssignmentNode(unique_ptr<ExpressionNode> left, unique_ptr<ExpressionNode> right, int lineNo) :
-        lvalue{std::move(left)}, rvalue{std::move(right)}, line{lineNo}
+    IndexNode(unique_ptr<ExpressionNode> Exp, unique_ptr<ExpressionNode> iExp, int lineNo) : operand{std::move(Exp)}
+        ,
+        subscript{std::move(iExp)}, line{lineNo}
     {
     };
-    EvalResult evaluateNode(InterpreterContext& ctx) const override;
-    void format(FormatContext& ctx) const override;
-    void debugPrint(int indentLevel) const override;
-
-    [[nodiscard]] bool isDeclarationTarget() const override { return false; };
+    //getReference gets reference of the identifier from the environment and returns lvalue
     [[nodiscard]] bool isAssignmentTarget() const override { return true; };
-    [[nodiscard]] string description() const override { return "literal"; };
+    [[nodiscard]] string description() const override { return "array subscript"; };
 
-private:
-    unique_ptr<ExpressionNode> lvalue;
-    unique_ptr<ExpressionNode> rvalue;
+    void accept(Visitor& visitor) override;
+
+    unique_ptr<ExpressionNode> operand;
+    unique_ptr<ExpressionNode> subscript;
 
 protected:
     int line;
 };
-
-class CompoundAssignmentNode : public ExpressionNode
-{
-public:
-    CompoundAssignmentNode(Token op, unique_ptr<ExpressionNode> left, unique_ptr<ExpressionNode> right, int lineNo) :
-        op{op}, lvalue{std::move(left)}, rvalue{std::move(right)}, line{lineNo}
-    {
-    };
-    EvalResult evaluateNode(InterpreterContext& ctx) const override;
-    void format(FormatContext& ctx) const override;
-    void debugPrint(int indentLevel) const override;
-
-    [[nodiscard]] bool isDeclarationTarget() const override { return false; };
-    [[nodiscard]] bool isAssignmentTarget() const override { return true; };
-    [[nodiscard]] string description() const override { return "literal"; };
-
-private:
-    Token op;
-    unique_ptr<ExpressionNode> lvalue;
-    unique_ptr<ExpressionNode> rvalue;
-
-protected:
-    int line;
-};
-
 
 class FunctionCallNode : public ExpressionNode
 {
@@ -415,17 +289,11 @@ public:
         }, arguments{std::move(args)}, line{lineNo}
     {
     };
-    EvalResult evaluateNode(InterpreterContext& ctx) const override;
-    // vector<unique_ptr<ExpressionNode>>& getReference(EnvironmentStack& scopes) const;
-    void format(FormatContext& ctx) const override;
-    void debugPrint(int indentLevel) const override;
 
-    [[nodiscard]] bool isDeclarationTarget() const override { return false; };
-    [[nodiscard]] bool isAssignmentTarget() const override { return false; };
     [[nodiscard]] string description() const override { return "function call"; };
 
-private
-:
+    void accept(Visitor& visitor) override;
+
     unique_ptr<ExpressionNode> identifier;
     vector<unique_ptr<ExpressionNode>> arguments;
 
@@ -436,10 +304,6 @@ protected:
 class MemberAccessNode : public ExpressionNode
 {
 public:
-    EvalResult evaluateNode(InterpreterContext& ctx) const override;
-    void format(FormatContext& ctx) const override;
-    void debugPrint(int indentLevel) const override;
-
     MemberAccessNode(unique_ptr<ExpressionNode> object, unique_ptr<ExpressionNode> m, int lineNo) : obj{
             std::move(object)
         },
@@ -447,13 +311,12 @@ public:
     {
     }
 
-    RuntimeValue& getReference(InterpreterContext& ctx) override;
-    RuntimeValue getObjVal(InterpreterContext& ctx) { return obj->evaluateNode(ctx).value; }
 
     string getObjName() const { return obj->getIdentifierName(); }
+    string getMemberName() const { return member->getIdentifierName(); }
 
-private:
-    // string name;
+    void accept(Visitor& visitor) override;
+
     unique_ptr<ExpressionNode> obj;
     unique_ptr<ExpressionNode> member;
 
@@ -467,6 +330,7 @@ public:
     virtual ~PatternNode() = default;
     virtual string type() const =0;
     virtual bool matches(const RuntimeValue& value, InterpreterContext& ctx) const =0;
+    virtual void accept(PatternVisitor& visitor) =0;
 };
 
 class OrPattern : public PatternNode
@@ -482,12 +346,12 @@ public:
             return false;
         }
     };
+    void accept(PatternVisitor& visitor) override;
 
     OrPattern(vector<unique_ptr<PatternNode>> pattern_nodes) : patterns{std::move(pattern_nodes)}
     {
     };
 
-private:
     vector<unique_ptr<PatternNode>> patterns;
 };
 
@@ -498,13 +362,13 @@ public:
     {
         return this->value == value;
     };
+    void accept(PatternVisitor& visitor) override;
 
     LiteralPattern(const RuntimeValue& val) : value{val}
     {
     };
     string type() const override { return "literal"; }
 
-private:
     RuntimeValue value;
 };
 
@@ -515,6 +379,7 @@ public:
     {
         return value == ctx.env->getReference(name).value;
     };
+    void accept(PatternVisitor& visitor) override;
 
     IdentifierPattern(string name) : name{name}
     {
@@ -522,7 +387,6 @@ public:
 
     string type() const override { return "identifier"; }
 
-private:
     string name;
 };
 
@@ -543,6 +407,7 @@ public:
         return false;
     }
 
+    void accept(PatternVisitor& visitor) override;
     string type() const override { return "range"; }
 
     RangePattern(RuntimeValue start, RuntimeValue end, bool inclusive) : start{std::move(start)}, end{std::move(end)},
@@ -550,7 +415,6 @@ public:
     {
     };
 
-private:
     RuntimeValue start;
     RuntimeValue end;
     bool inclusive;
@@ -561,6 +425,7 @@ class WildCardPattern : public PatternNode
 public:
     bool matches(const RuntimeValue& value, InterpreterContext& ctx) const override { return true; }
     string type() const override { return "wildcard"; }
+    void accept(PatternVisitor& visitor) override;
 };
 
 struct MatchArm
@@ -572,16 +437,12 @@ struct MatchArm
 class MatchPatternNode : public ExpressionNode
 {
 public:
-    EvalResult evaluateNode(InterpreterContext& ctx) const override;
-    void debugPrint(int indentLevel) const override;
-    void format(FormatContext& ctx) const override;
-
     MatchPatternNode(unique_ptr<ExpressionNode> discriminant, vector<MatchArm> armsExpr, int lineNo) :
         scrutinee{std::move(discriminant)}, armsExpr{std::move(armsExpr)}, line{lineNo}
     {
     }
 
-private:
+    void accept(Visitor& visitor) override;
     unique_ptr<ExpressionNode> scrutinee;
     vector<MatchArm> armsExpr;
 
@@ -595,41 +456,109 @@ public:
     RuntimeValue value;
 };
 
-
 class BlockExpressionNode : public ExpressionNode
 {
 public :
-    EvalResult evaluateNode(InterpreterContext& ctx) const override;
-    void debugPrint(int indentLevel) const override;
-    void format(FormatContext& ctx) const override;
-
     BlockExpressionNode(vector<unique_ptr<StatementNode>> stmts, unique_ptr<ExpressionNode> result) : statements{
             std::move(stmts)
         }, resultExpr{std::move(result)}
     {
     }
 
-private:
+    void accept(Visitor& visitor) override;
+
     vector<unique_ptr<StatementNode>> statements;
     unique_ptr<ExpressionNode> resultExpr;
+};
+
+class AssignmentNode : public ExpressionNode
+{
+public:
+    AssignmentNode(unique_ptr<ExpressionNode> left, unique_ptr<ExpressionNode> right, int lineNo) :
+        lvalue{std::move(left)}, rvalue{std::move(right)}, line{lineNo}
+    {
+    };
+
+    [[nodiscard]] bool isAssignmentTarget() const override { return true; };
+    [[nodiscard]] string description() const override { return "literal"; };
+
+    void accept(Visitor& visitor) override;
+
+    unique_ptr<ExpressionNode> lvalue;
+    unique_ptr<ExpressionNode> rvalue;
+
+protected:
+    int line;
+};
+
+class CompoundAssignmentNode : public ExpressionNode
+{
+public:
+    CompoundAssignmentNode(Token op, unique_ptr<ExpressionNode> left, unique_ptr<ExpressionNode> right, int lineNo) :
+        op{op}, lvalue{std::move(left)}, rvalue{std::move(right)}, line{lineNo}
+    {
+    };
+
+    [[nodiscard]] bool isAssignmentTarget() const override { return true; };
+    [[nodiscard]] string description() const override { return "literal"; };
+
+    void accept(Visitor& visitor) override;
+
+    Token op;
+    unique_ptr<ExpressionNode> lvalue;
+    unique_ptr<ExpressionNode> rvalue;
+
+protected:
+    int line;
 };
 
 class ExpressionStatementNode : public StatementNode
 {
 public:
-    void format(FormatContext& ctx) const override;
-    void debugPrint(int indentLevel) const override;
-    EvalResult evaluateNode(InterpreterContext& ctx) const override;
     string description() const override { return "ExpressionStatement"; }
+    void accept(Visitor& visitor) override;
 
     ExpressionStatementNode(unique_ptr<ExpressionNode> expression) : expressionStmt{std::move(expression)}
     {
     };
 
-private:
     unique_ptr<ExpressionNode> expressionStmt;
 };
 
+class StructDeclarationNode : public StatementNode
+{
+public:
+    string description() const override { return "struct"; }
+    void registerInEnv(InterpreterContext& ctx) const;
+    void accept(Visitor& visitor) override;
+
+    StructDeclarationNode(string name, vector<string> fields, vector<unique_ptr<StatementNode>> methodStatement) :
+        typeName(name),
+        fieldNames{fields},
+        methodsStmt{std::move(methodStatement)}
+    {
+    }
+
+
+    string typeName;
+    vector<string> fieldNames;
+    vector<unique_ptr<StatementNode>> methodsStmt;
+};
+
+class EnumDeclarationNode : public StatementNode
+{
+public:
+    void registerInEnv(InterpreterContext& ctx) const;
+    void accept(Visitor& visitor) override;
+
+    EnumDeclarationNode(string type, vector<Variant> fields) : typeName{std::move(type)}, variants{std::move(fields)}
+    {
+    }
+
+
+    string typeName;
+    vector<Variant> variants;
+};
 
 class DeclarationNode : public StatementNode
 {
@@ -639,6 +568,7 @@ public:
         rvalue{std::move(right)}, line{lineNo}
     {
     };
+    void accept(Visitor& visitor) override;
 
     DeclarationNode(unique_ptr<ExpressionNode> left, unique_ptr<ExpressionNode> right, unique_ptr<TypeNode> type,
                     int lineNo) :
@@ -661,12 +591,9 @@ public:
         line{lineNo}
     {
     };
-    EvalResult evaluateNode(InterpreterContext& ctx) const override;
-    void format(FormatContext& ctx) const override;
-    void debugPrint(int indentLevel) const override;
     string description() const override { return "Declaration"; }
 
-private:
+
     unique_ptr<ExpressionNode> lvalue;
     unique_ptr<ExpressionNode> rvalue;
     bool hasInitialValue{true};
@@ -675,146 +602,6 @@ private:
 
 protected:
     int line;
-};
-
-
-class IfNode : public StatementNode
-{
-public:
-    IfNode(unique_ptr<ExpressionNode> c, unique_ptr<StatementNode> thenBranch) : condition{std::move(c)},
-        thenStatement{std::move(thenBranch)}
-    {
-    };
-
-    IfNode(unique_ptr<ExpressionNode> c, unique_ptr<StatementNode> thenBranch,
-           unique_ptr<StatementNode> elseBranch)
-        : condition{std::move(c)}, thenStatement{std::move(thenBranch)}, elseStatement{std::move(elseBranch)}
-    {
-    };
-    EvalResult evaluateNode(InterpreterContext& ctx) const override;
-    void format(FormatContext& ctx) const override;
-    void debugPrint(int indentLevel) const override;
-
-private:
-    unique_ptr<ExpressionNode> condition;
-    unique_ptr<StatementNode> thenStatement;
-    unique_ptr<StatementNode> elseStatement;
-};
-
-class WhileNode : public StatementNode
-{
-public:
-    WhileNode(unique_ptr<ExpressionNode> c, unique_ptr<StatementNode> whileBranch) : condition{std::move(c)},
-        statement{std::move(whileBranch)}
-    {
-    };
-    EvalResult evaluateNode(InterpreterContext& ctx) const override;
-    void format(FormatContext& ctx) const override;
-    void debugPrint(int indentLevel) const override;
-
-private:
-    unique_ptr<ExpressionNode> condition;
-    unique_ptr<StatementNode> statement;
-};
-
-class ForNode : public StatementNode
-{
-public:
-    ForNode(unique_ptr<StatementNode> stmt, unique_ptr<StatementNode> init = nullptr,
-            unique_ptr<ExpressionNode> cond = nullptr, unique_ptr<ExpressionNode> expr = nullptr) :
-        initializer{std::move(init)}, condition{std::move(cond)}, expr{std::move(expr)}, statement{std::move(stmt)}
-    {
-    };
-    EvalResult evaluateNode(InterpreterContext& ctx) const override;
-    void format(FormatContext& ctx) const override;
-    void debugPrint(int indentLevel) const override;
-
-private:
-    unique_ptr<StatementNode> initializer;
-    unique_ptr<ExpressionNode> condition;
-    unique_ptr<ExpressionNode> expr;
-    unique_ptr<StatementNode> statement;
-};
-
-class ForEachNode : public StatementNode
-{
-public:
-    void debugPrint(int indentLevel) const override;
-    EvalResult evaluateNode(InterpreterContext& ctx) const override;
-    void format(FormatContext& ctx) const override;
-
-    ForEachNode(vector<string> init, unique_ptr<ExpressionNode> container, unique_ptr<StatementNode> stmt) :
-        identifiers{init}, containerExp{std::move(container)}, statement{std::move(stmt)}
-    {
-    };
-
-private:
-    vector<string> identifiers;
-    unique_ptr<ExpressionNode> containerExp;
-    unique_ptr<StatementNode> statement;
-};
-
-class BreakNode : public StatementNode
-{
-public:
-    BreakNode()
-    {
-    }
-
-    EvalResult evaluateNode(InterpreterContext& ctx) const override;
-    void format(FormatContext& ctx) const override;
-    void debugPrint(int indentLevel) const override;
-    string description() const override { return "Break"; }
-};
-
-class BreakSignal
-{
-};
-
-class ContinueNode : public StatementNode
-{
-public:
-    ContinueNode()
-    {
-    };
-    EvalResult evaluateNode(InterpreterContext& ctx) const override;
-    void format(FormatContext& ctx) const override;
-    void debugPrint(int indentLevel) const override;
-    string description() const override { return "Continue"; }
-};
-
-class ContinueSignal
-{
-};
-
-class BlockNode : public StatementNode
-{
-public:
-    BlockNode(vector<unique_ptr<StatementNode>> ss) : statements{std::move(ss)}
-    {
-    };
-    void debugPrint(int indentLevel) const override;
-    void format(FormatContext& ctx) const override;
-    EvalResult evaluateNode(InterpreterContext& ctx) const override;
-    string description() const override { return "block"; }
-
-private:
-    vector<unique_ptr<StatementNode>> statements;
-};
-
-class UnaryNode : public ExpressionNode
-{
-public:
-    UnaryNode(Token unOp, unique_ptr<ExpressionNode> n_node) : op{unOp}, child{std::move(n_node)}
-    {
-    };
-    EvalResult evaluateNode(InterpreterContext& ctx) const override;
-    void format(FormatContext& ctx) const override;
-    void debugPrint(int indentLevel) const override;
-
-private:
-    Token op;
-    unique_ptr<ExpressionNode> child;
 };
 
 struct Param
@@ -839,19 +626,119 @@ public:
     {
     }
 
-    void format(FormatContext& ctx) const override;
-    void debugPrint(int indentLevel) const override;
-    EvalResult evaluateNode(InterpreterContext& ctx) const override;
-    void registerInEnv(InterpreterContext& ctx) const;
     void registerInCustomEnv(std::map<string, shared_ptr<FunctionObject>>& methodEnv, InterpreterContext& ctx);
-    int getParametersSize() const { return parameters.size(); };
 
-private:
+    void accept(Visitor& visitor) override;
     string identifier;
     vector<Param> parameters;
     unique_ptr<StatementNode> body;
     unique_ptr<TypeNode> type{nullptr};
     int line;
+};
+
+class IfNode : public StatementNode
+{
+public:
+    IfNode(unique_ptr<ExpressionNode> c, unique_ptr<StatementNode> thenBranch) : condition{std::move(c)},
+        thenStatement{std::move(thenBranch)}
+    {
+    };
+    void accept(Visitor& visitor) override;
+
+    IfNode(unique_ptr<ExpressionNode> c, unique_ptr<StatementNode> thenBranch,
+           unique_ptr<StatementNode> elseBranch)
+        : condition{std::move(c)}, thenStatement{std::move(thenBranch)}, elseStatement{std::move(elseBranch)}
+    {
+    };
+
+
+    unique_ptr<ExpressionNode> condition;
+    unique_ptr<StatementNode> thenStatement;
+    unique_ptr<StatementNode> elseStatement;
+};
+
+class WhileNode : public StatementNode
+{
+public:
+    WhileNode(unique_ptr<ExpressionNode> c, unique_ptr<StatementNode> whileBranch) : condition{std::move(c)},
+        statement{std::move(whileBranch)}
+    {
+    };
+    void accept(Visitor& visitor) override;
+
+    unique_ptr<ExpressionNode> condition;
+    unique_ptr<StatementNode> statement;
+};
+
+class ForNode : public StatementNode
+{
+public:
+    ForNode(unique_ptr<StatementNode> stmt, unique_ptr<StatementNode> init = nullptr,
+            unique_ptr<ExpressionNode> cond = nullptr, unique_ptr<ExpressionNode> expr = nullptr) :
+        initializer{std::move(init)}, condition{std::move(cond)}, expr{std::move(expr)}, statement{std::move(stmt)}
+    {
+    };
+    void accept(Visitor& visitor) override;
+
+    unique_ptr<StatementNode> initializer;
+    unique_ptr<ExpressionNode> condition;
+    unique_ptr<ExpressionNode> expr;
+    unique_ptr<StatementNode> statement;
+};
+
+class ForEachNode : public StatementNode
+{
+public:
+    ForEachNode(vector<string> init, unique_ptr<ExpressionNode> container, unique_ptr<StatementNode> stmt) :
+        identifiers{init}, containerExp{std::move(container)}, statement{std::move(stmt)}
+    {
+    };
+
+    void accept(Visitor& visitor) override;
+    vector<string> identifiers;
+    unique_ptr<ExpressionNode> containerExp;
+    unique_ptr<StatementNode> statement;
+};
+
+class BreakNode : public StatementNode
+{
+public:
+    BreakNode()
+    {
+    }
+
+    void accept(Visitor& visitor) override;
+    string description() const override { return "Break"; }
+};
+
+class BreakSignal
+{
+};
+
+class ContinueNode : public StatementNode
+{
+public:
+    ContinueNode()
+    {
+    };
+    void accept(Visitor& visitor) override;
+    string description() const override { return "Continue"; }
+};
+
+class ContinueSignal
+{
+};
+
+class BlockNode : public StatementNode
+{
+public:
+    BlockNode(vector<unique_ptr<StatementNode>> ss) : statements{std::move(ss)}
+    {
+    };
+    string description() const override { return "block"; }
+
+    void accept(Visitor& visitor) override;
+    vector<unique_ptr<StatementNode>> statements;
 };
 
 
@@ -861,12 +748,9 @@ public:
     ReturnNode(unique_ptr<ExpressionNode> statement = nullptr) : returnStatement(std::move(statement))
     {
     };
-    void format(FormatContext& ctx) const override;
-    void debugPrint(int indentLevel) const override;
     string description() const override { return "Return"; }
-    EvalResult evaluateNode(InterpreterContext& ctx) const override;
+    void accept(Visitor& visitor) override;
 
-private:
     unique_ptr<ExpressionNode> returnStatement;
 };
 
@@ -883,23 +767,18 @@ public:
 class EmptyNode : public StatementNode
 {
 public:
-    void format(FormatContext& ctx) const override;
-    void debugPrint(int indentLevel) const override;
-    EvalResult evaluateNode(InterpreterContext& ctx) const override;
+    void accept(Visitor& visitor) override;
 };
 
 class ThrowNode : public StatementNode
 {
 public:
-    void format(FormatContext& ctx) const override;
-    void debugPrint(int indentLevel) const override;
-    EvalResult evaluateNode(InterpreterContext& ctx) const override;
-
     ThrowNode(unique_ptr<ExpressionNode> expr) : throwValExp{std::move(expr)}
     {
     }
 
-private:
+    void accept(Visitor& visitor) override;
+
     unique_ptr<ExpressionNode> throwValExp;
 };
 
@@ -917,16 +796,12 @@ struct CatchClause
 class TryCatch : public StatementNode
 {
 public:
-    void format(FormatContext& ctx) const override;
-    void debugPrint(int indentLevel) const override;
-    EvalResult evaluateNode(InterpreterContext& ctx) const override;
-
     TryCatch(unique_ptr<StatementNode> tryStmt, vector<CatchClause> catchClauses) : tryStatement{std::move(tryStmt)},
         catches{std::move(catchClauses)}
     {
     }
 
-private:
+    void accept(Visitor& visitor) override;
     unique_ptr<StatementNode> tryStatement;
     vector<CatchClause> catches;
 };
@@ -934,10 +809,6 @@ private:
 class ImportNode : public StatementNode
 {
 public:
-    void format(FormatContext& ctx) const override;
-    void debugPrint(int indentLevel) const override;
-    EvalResult evaluateNode(InterpreterContext& ctx) const override;
-
     ImportNode(string fP, string alias, int lineNo) : file{fP}, alias{alias}, line{lineNo}
     {
     }
@@ -947,7 +818,8 @@ public:
     {
     }
 
-private:
+    void accept(Visitor& visitor) override;
+
     string file;
     string alias;
     bool isStdLib{false};
@@ -966,10 +838,7 @@ public:
     {
     }
 
-    void format(FormatContext& ctx) const override;
-    void debugPrint(int indentLevel) const override;
-
-private:
+    void accept(TypeVisitor& visitor) override;
     string type;
 };
 
@@ -980,25 +849,18 @@ public:
     {
     }
 
-    void format(FormatContext& ctx) const override;
-    void debugPrint(int indentLevel) const override;
-
-private:
+    void accept(TypeVisitor& visitor) override;
     unique_ptr<TypeNode> nestedType;
 };
-
 
 class MapType : public TypeNode
 {
 public:
-    void format(FormatContext& ctx) const override;
-    void debugPrint(int indentLevel) const override;
-
     MapType(unique_ptr<TypeNode> key, unique_ptr<TypeNode> value) : key{std::move(key)}, value{std::move(value)}
     {
     }
 
-private:
+    void accept(TypeVisitor& visitor) override;
     unique_ptr<TypeNode> key;
     unique_ptr<TypeNode> value;
 };
@@ -1006,14 +868,11 @@ private:
 class ProgramDefinedType : public TypeNode
 {
 public:
-    void debugPrint(int indentLevel) const override;
-    void format(FormatContext& ctx) const override;
-
     explicit ProgramDefinedType(string name) : typeName{name}
     {
     }
 
-private:
+    void accept(TypeVisitor& visitor) override;
     string typeName;
 };
 
@@ -1024,10 +883,7 @@ public:
     {
     }
 
-    void format(FormatContext& ctx) const override;
-    void debugPrint(int indentLevel) const override;
-
-private:
+    void accept(TypeVisitor& visitor) override;
     vector<unique_ptr<TypeNode>> types;
 };
 
@@ -1038,10 +894,7 @@ public:
     {
     }
 
-    void format(FormatContext& ctx) const override;
-    void debugPrint(int indentLevel) const override;
-
-private:
+    void accept(TypeVisitor& visitor) override;
     vector<unique_ptr<TypeNode>> types;
 };
 

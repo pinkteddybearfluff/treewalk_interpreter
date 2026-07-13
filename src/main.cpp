@@ -15,6 +15,8 @@
 #include "runtime/RuntimeValue.h"
 #include "error/RuntimeError.h"
 #include "utilities/Utilities.h"
+#include "visitors/EvaluateVisitor.h"
+#include "visitors/FormatVisitor.h"
 
 // The Laven Language Lavender
 
@@ -46,10 +48,10 @@ auto main(int argc, char** argv) -> int
     builtinEnv->parent = nullptr;
     registerStdLib(*builtinEnv);
     ctx.env->parent = builtinEnv;
-    modules->loadedModules.insert(std::make_pair("coreSTDLIB", loadStdlib("core", ctx)));
-    importBuiltinStdlib("array", "ARRAYSTDLIB", ctx);
-    importBuiltinStdlib("map", "MAPSTDLIB", ctx);
-    importBuiltinStdlib("string", "STRINGSTDLIB", ctx);
+    // modules->loadedModules.insert(std::make_pair("coreSTDLIB", loadStdlib("core", ctx)));
+    // importBuiltinStdlib("array", "ARRAYSTDLIB", ctx);
+    // importBuiltinStdlib("map", "MAPSTDLIB", ctx);
+    // importBuiltinStdlib("string", "STRINGSTDLIB", ctx);
 
     /*
      *  Environment hierarchy:
@@ -85,18 +87,12 @@ auto main(int argc, char** argv) -> int
                     throw std::runtime_error("Failed to open file");
                 }
 
-                vector<unique_ptr<StatementNode>> nodes;
                 TokenStream ts{is};
-                while (!check(TokenType::End, ts))
-                {
-                    nodes.push_back(parseStatement(ts));
-                }
-                unique_ptr<ProgramNode> program = make_unique<ProgramNode>(std::move(nodes));
+                auto program = parseProgram(ts);
 
                 std::ofstream formattedFile(file);
                 FormatContext fmtCtx{0, formattedFile};
 
-                program->format(fmtCtx);
                 return 0;
             }
         }
@@ -113,45 +109,19 @@ auto main(int argc, char** argv) -> int
         }
         try
         {
-            int result{0};
-            vector<unique_ptr<StatementNode>> nodes;
-
             TokenStream ts{is};
-            while (!check(TokenType::End, ts))
-            {
-                nodes.push_back(parseStatement(ts));
-            }
-            parseCompleteFlag = std::chrono::high_resolution_clock::now();
-            // cout << std::format("<--------Parsing completed-------------> [Time:{}]",
-            //                     std::chrono::duration<double>(parseCompleteFlag - start).count()) << '\n';
-            unique_ptr<ProgramNode> program = make_unique<ProgramNode>(std::move(nodes));
-            evalCompleteFlag = std::chrono::high_resolution_clock::now();
-            // cout << std::format("<----------Evaluation complete---------> [Time:{}]",
-            //                     std::chrono::duration<double>(evalCompleteFlag - start).count()) << '\n';
-            if constexpr (DEBUG_AST)
-                program->debugPrint(0);
+            auto program = parseProgram(ts);
 
+
+            auto interpreter = EvaluateVisitor{ctx};
+            auto formatter = FormatVisitor{};
             if constexpr (EVALUATE)
-                program->evaluateNode(ctx);
-            // FormatContext fmtCtx;
-            //
-            // program->format(fmtCtx);
-
-            // if constexpr (DEBUG_ENV);
-            // env.debugEnvPrint();
-            auto end = std::chrono::high_resolution_clock::now();
-
-            // std::cout
-            //     << std::format("[Total time taken: {}]",
-            //                    std::chrono::duration<double>(end - start).count()) << '\n';
-            //
-            // std::cout
-            //     << std::format("[Time taken for parsing: {}]",
-            //                    std::chrono::duration<double>(parseCompleteFlag - start).count()) << '\n';
-            // std::cout
-            //     << std::format("Time taken for evaluation: {}]",
-            //                    std::chrono::duration<double>(evalCompleteFlag - parseCompleteFlag).count()) << '\n';
-
+                program->accept(interpreter);
+            if constexpr (FORMAT)
+            {
+                program->accept(formatter);
+                cout << formatter.result();
+            }
             return 0;
         }
         catch (const LexerError& le)
@@ -205,23 +175,24 @@ auto main(int argc, char** argv) -> int
                 if (string input = readREPLinput(); !input.empty())
                 {
                     std::istringstream sis{input};
-
+                    auto interpreter = EvaluateVisitor{ctx};
                     TokenStream ts{sis};
                     nodes.push_back(parseStatement(ts));
-                    if (auto [hasValue, value] = nodes.back()->evaluateNode(ctx); hasValue)
+                    nodes.back()->accept(interpreter);
+                    if (!interpreter.result.isNull())
                     {
-                        if (value.isNull())
+                        if (interpreter.result.isNull())
                             cout << color::black;
-                        else if (value.isCallable())
+                        else if (interpreter.result.isCallable())
                             cout << color::blue;
                         else cout << color::yellow;
-                        if (value.isString())
+                        if (interpreter.result.isString())
                         {
                             cout << "'";
-                            printRuntimeValue(cout, value);
+                            printRuntimeValue(cout, interpreter.result);
                             cout << "'";
                         }
-                        else printRuntimeValue(cout, value);
+                        else printRuntimeValue(cout, interpreter.result);
                         cout << "\n";
                         cout << color::reset;
                     }

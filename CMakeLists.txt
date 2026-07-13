@@ -22,4 +22,12 @@ add_executable(laven
         src/error/RuntimeError.h
         src/utilities/Utilities.h
         src/utilities/Utilities.cpp
-        src/utilities/Random.h)
+        src/utilities/Random.h
+        src/visitors/Visitors.h
+        src/visitors/EvaluateVisitor.cpp
+        src/visitors/EvaluateVisitor.h
+        src/visitors/FormatVisitor.cpp
+        src/visitors/FormatVisitor.h
+        src/visitors/DeclarationVisitor.cpp
+        src/visitors/DeclarationVisitor.h
+)

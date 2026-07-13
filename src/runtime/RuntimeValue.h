@@ -10,6 +10,8 @@
 #include "../error/RuntimeError.h"
 #include <variant>
 
+#include "RuntimeValue.h"
+
 
 using std::string;
 using std::vector;
@@ -45,7 +47,7 @@ struct Callable
 {
     string f_name;
     int callLine;
-    virtual RuntimeValue call(const vector<RuntimeValue>& arguments, int line) const =0;
+    virtual RuntimeValue call(const vector<RuntimeValue>& arguments) const =0;
     virtual ~Callable() = default;
 };
 
@@ -60,10 +62,10 @@ struct Parameter
 struct FunctionObject : public Callable
 {
     vector<Parameter> parameters;
-    const BlockNode* body;
+    BlockNode* body;
     shared_ptr<Environment> closure;
 
-    FunctionObject(string f_name, vector<Parameter> parameters, const BlockNode* body,
+    FunctionObject(string f_name, vector<Parameter> parameters, BlockNode* body,
                    shared_ptr<Environment> closure, int line) : parameters{std::move(parameters)}, body{body},
                                                                 closure{std::move(closure)},
                                                                 f_name{f_name},
@@ -72,7 +74,7 @@ struct FunctionObject : public Callable
     }
 
 
-    RuntimeValue call(const vector<RuntimeValue>& arguments, int line) const override;
+    RuntimeValue call(const vector<RuntimeValue>& arguments) const override;
 
 protected:
     string f_name;
@@ -93,7 +95,7 @@ struct NativeFunction : public Callable
     {
     }
 
-    RuntimeValue call(const vector<RuntimeValue>& arguments, int line) const override;
+    RuntimeValue call(const vector<RuntimeValue>& arguments) const override;
 
 protected:
     string f_name;
@@ -404,7 +406,7 @@ private:
 struct BoundMethod : public Callable
 {
 public:
-    RuntimeValue call(const vector<RuntimeValue>& arguments, int line) const override;
+    RuntimeValue call(const vector<RuntimeValue>& arguments) const override;
     shared_ptr<Callable> function;
     RuntimeValue self;
 
@@ -454,6 +456,7 @@ namespace Operator
     RuntimeValue lessEqual(const RuntimeValue& a, const RuntimeValue& b);
 
     RuntimeValue logicalAnd(const RuntimeValue& a, const RuntimeValue& b);
+    RuntimeValue logicalOr(const RuntimeValue& a, const RuntimeValue& b);
 }
 
 

@@ -18,10 +18,8 @@ void registerStdLibMap(Environment& env);
 void registerNativeFunctions(
     std::function<RuntimeValue(const vector<RuntimeValue>& args)> fn, string f_name, Environment& env);
 
-unique_ptr<ProgramNode> loadStdlib(const string& file_name, InterpreterContext& ctx);
+unique_ptr<ProgramNode> loadStdlib(const string& file_name, Environment& env);
 
-void importStdlibModule(const string& file_name, string alias, InterpreterContext& ctx);
-void importBuiltinStdlib(const string& file_name, string alias, InterpreterContext& ctx);
 
 namespace stdlib
 {

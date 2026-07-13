@@ -6,6 +6,7 @@
 #include "../ast/Ast.h"
 #include "Environment.h"
 #include "../stdlib/Stdlib.h"
+#include "../visitors/EvaluateVisitor.h"
 
 
 int gCallDepth{0};
@@ -72,17 +73,17 @@ string RuntimeValue::description() const
     }
 }
 
-RuntimeValue BoundMethod::call(const vector<RuntimeValue>& arguments, int line) const
+RuntimeValue BoundMethod::call(const vector<RuntimeValue>& arguments) const
 {
     vector<RuntimeValue> args{self};
     for (const auto& arg : arguments)
     {
         args.push_back(arg);
     }
-    return function->call(args, line);
+    return function->call(args);
 }
 
-RuntimeValue FunctionObject::call(const vector<RuntimeValue>& arguments, int line) const
+RuntimeValue FunctionObject::call(const vector<RuntimeValue>& arguments) const
 {
     int defArgs{0};
     bool hasDefaultArgs{false};
@@ -100,6 +101,8 @@ RuntimeValue FunctionObject::call(const vector<RuntimeValue>& arguments, int lin
     if (closure)
         callEnv->parent = closure;
     InterpreterContext ctxNew = {callEnv, {}};
+
+    auto evaluateVisitor = EvaluateVisitor(ctxNew);
     auto callerGuard = CallDepthGuard(gCallDepth);
     if (gCallDepth >= maxCallDepth)
         throw MaxRecursion();
@@ -114,8 +117,9 @@ RuntimeValue FunctionObject::call(const vector<RuntimeValue>& arguments, int lin
             }
             for (std::size_t i = arguments.size(); i < parameters.size(); ++i)
             {
+                parameters[i].defaultVal->accept(evaluateVisitor);
                 callEnv->variables.insert({
-                    parameters[i].name, VariableInfo(parameters[i].defaultVal->evaluateNode(ctxNew).value, callLine)
+                    parameters[i].name, VariableInfo(std::move(evaluateVisitor.result), callLine)
                 });
             }
         }
@@ -145,7 +149,7 @@ RuntimeValue FunctionObject::call(const vector<RuntimeValue>& arguments, int lin
     }
     try
     {
-        body->evaluateNode(ctxNew);
+        body->accept(evaluateVisitor);
         return {};
     }
     catch (const ReturnSignal& r)
@@ -154,7 +158,7 @@ RuntimeValue FunctionObject::call(const vector<RuntimeValue>& arguments, int lin
     }
 }
 
-RuntimeValue NativeFunction::call(const vector<RuntimeValue>& arguments, int line) const
+RuntimeValue NativeFunction::call(const vector<RuntimeValue>& arguments) const
 {
     return fn(arguments);
 }
@@ -163,11 +167,11 @@ void validateArity(string identifier, int expectedArgs, int actualArgs, bool var
 {
     if (!variadic && actualArgs > expectedArgs)
         throw ArityDiagnostic{
-            identifier, ErrorKind::TooManyArguments, expectedArgs, actualArgs, variadic
+            identifier, ErrorCode::TooManyArguments, expectedArgs, actualArgs, variadic
         };
     if (actualArgs < expectedArgs)
     {
-        throw ArityDiagnostic{identifier, ErrorKind::TooFewArguments, expectedArgs, actualArgs, variadic};
+        throw ArityDiagnostic{identifier, ErrorCode::TooFewArguments, expectedArgs, actualArgs, variadic};
     }
 }
 
@@ -211,6 +215,7 @@ RuntimeValue EnumValue::getMemberValue(string mName)
     }
     throw std::runtime_error("someone didn't check before if enum variant has the member");
 }
+
 
 bool RuntimeValue::isTruthy() const
 {
@@ -330,6 +335,7 @@ std::size_t RuntimeValueHash::operator()(const RuntimeValue& value) const
     }
 }
 
+//Throw UnsupportedOperation or DivisionByError
 namespace Operator
 {
     RuntimeValue add(const RuntimeValue& a, const RuntimeValue& b)
@@ -481,5 +487,15 @@ namespace Operator
     RuntimeValue lessEqual(const RuntimeValue& a, const RuntimeValue& b)
     {
         return !greater(a, b).asBoolean();
+    }
+
+    RuntimeValue logicalAnd(const RuntimeValue& a, const RuntimeValue& b)
+    {
+        return a.isTruthy() && b.isTruthy();
+    }
+
+    RuntimeValue logicalOr(const RuntimeValue& a, const RuntimeValue& b)
+    {
+        return a.isTruthy() || b.isTruthy();
     }
 }

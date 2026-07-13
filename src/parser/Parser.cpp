@@ -274,7 +274,7 @@ auto parseStruct(TokenStream& ts) -> unique_ptr<StatementNode>
         }
         if (match(TokenType::CloseBrace, ts))break;
     }
-    return make_unique<StructNode>(std::move(iden), std::move(fieldNames), std::move(methods));
+    return make_unique<StructDeclarationNode>(std::move(iden), std::move(fieldNames), std::move(methods));
 }
 
 auto parseEnum(TokenStream& ts) -> unique_ptr<StatementNode>
@@ -309,7 +309,7 @@ auto parseEnum(TokenStream& ts) -> unique_ptr<StatementNode>
         }
         if (match(TokenType::CloseBrace, ts))break;
     }
-    return make_unique<EnumNode>(std::move(iden), std::move(variants));
+    return make_unique<EnumDeclarationNode>(std::move(iden), std::move(variants));
 }
 
 unique_ptr<StatementNode> parseDeclaration(TokenStream& ts)
@@ -1037,11 +1037,13 @@ auto parseMatchPattern(TokenStream& ts) -> unique_ptr<ExpressionNode>
             {
                 auto expr = parseBlockExpression(ts);
                 arms.push_back({std::move(pattern), std::move(expr)});
+                match(TokenType::Comma, ts);
             }
             else
             {
                 auto expr = parseEquality(ts);
                 arms.push_back({std::move(pattern), std::move(expr)});
+                match(TokenType::Comma, ts);
             }
             consume(TokenType::CloseBrace, "default must be at last", ts);
             break;
@@ -1221,4 +1223,14 @@ auto parsePrimitiveType(TokenStream& ts) -> unique_ptr<TypeNode>
         return make_unique<PrimitiveType>("null");
     }
     throw std::runtime_error(std::format("Expected type identifier line {}", ts.peek().line));
+}
+
+auto parseProgram(TokenStream& ts) -> unique_ptr<ProgramNode>
+{
+    vector<unique_ptr<StatementNode>> statements;
+    while (!check(TokenType::End, ts))
+    {
+        statements.emplace_back(parseStatement(ts));
+    }
+    return make_unique<ProgramNode>(std::move(statements));
 }

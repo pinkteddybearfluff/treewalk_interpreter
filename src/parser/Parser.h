@@ -45,6 +45,8 @@ void debugExit(std::string_view parserName);
 auto parseUnionType(TokenStream& ts) -> unique_ptr<TypeNode>;
 auto parsePrimitiveType(TokenStream& ts) -> unique_ptr<TypeNode>;
 
+auto parseProgram(TokenStream& ts) -> unique_ptr<ProgramNode>;
+
 auto parseStatement(TokenStream& ts) -> unique_ptr<StatementNode>;
 
 auto parseImportStatement(TokenStream& ts) -> unique_ptr<StatementNode>;

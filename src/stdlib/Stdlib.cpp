@@ -227,7 +227,7 @@ void registerStdLib(Environment& env)
                                 return std::chrono::duration<double>(std::chrono::steady_clock::now() - startTime).
                                     count();
                             }, "clock", env);
-    registerNativeFunctions([](const std::vector<RuntimeValue>& args)-> RuntimeValue
+    registerNativeFunctions([](const std::vector<RuntimeValue>& args) -> RuntimeValue
     {
         validateArity("assert", 1, args.size(), false);
         if (args[0].isBoolean())
@@ -443,78 +443,40 @@ void registerStdLibMath(Environment& env)
     }, "exp", env);
 }
 
-unique_ptr<ProgramNode> loadStdlib(const string& lib, InterpreterContext& ctx)
+unique_ptr<ProgramNode> loadStdlib(const string& lib, Environment& env)
 {
-    if (!(lib == "string" || lib == "array" || lib == "math" || lib == "map" || lib == "core"))
-        throw UndefinedVariable();
     if (lib == "array")
     {
-        registerStdLibArray(*ctx.env);
+        registerStdLibArray(env);
     }
-    if (lib == "math")
+    else if (lib == "math")
     {
-        registerStdLibMath(*ctx.env);
+        registerStdLibMath(env);
     }
-    if (lib == "map")
+    else if (lib == "map")
     {
-        registerStdLibMap(*ctx.env);
+        registerStdLibMap(env);
         return nullptr;
     }
+    else if (lib == "string")
+    {
+    }
+    else if (lib == "core")
+    {
+    }
+    else { throw UndefinedVariable(); }
     const string filePath = std::format("/home/wcosmo/Desktop/Projects/interpreter/stdlib/{}.som", lib);
     std::ifstream is(filePath);
-    ctx.currentFile = filePath;
     if (!is.is_open())
     {
         throw std::runtime_error("Failed to open file " + filePath);
     }
 
-    vector<unique_ptr<StatementNode>> nodes;
     TokenStream ts{is};
-    while (!check(TokenType::End, ts))
-    {
-        nodes.push_back(parseStatement(ts));
-    }
-    unique_ptr<ProgramNode> program = make_unique<ProgramNode>(std::move(nodes));
-    program->evaluateNode(ctx);
-    return program;
+
+    return parseProgram(ts);
 }
 
-void importBuiltinStdlib(const string& file_name, string alias, InterpreterContext& ctx)
-{
-    string stdLibIdentifier = std::format("std.{}", file_name);
-    auto itr = ctx.module->loadedModules.find(stdLibIdentifier);
-    if (itr == ctx.module->loadedModules.end())
-    {
-        auto moduleCtx = InterpreterContext(std::make_shared<Environment>(), ctx.builtin, ctx.module);
-        auto program = loadStdlib(file_name, moduleCtx);
-        ctx.module->loadedModules.insert({stdLibIdentifier, ModuleCtx{std::move(program), moduleCtx.env}});
-        moduleCtx.env->parent = ctx.builtin;
-        moduleCtx.workingDir = ctx.workingDir;
-        ctx.builtin->declare(alias, {
-                                 std::make_shared<Module>(moduleCtx.env, alias), -1
-                             });
-    }
-}
-
-void importStdlibModule(const string& file_name, string alias, InterpreterContext& ctx)
-{
-    string stdLibIdentifier = std::format("std.{}", file_name);
-    auto itr = ctx.module->loadedModules.find(stdLibIdentifier);
-    if (itr == ctx.module->loadedModules.end())
-    {
-        auto moduleCtx = InterpreterContext(std::make_shared<Environment>(), ctx.builtin, ctx.module);
-        auto program = loadStdlib(file_name, moduleCtx);
-        ctx.module->loadedModules.insert({stdLibIdentifier, ModuleCtx{std::move(program), moduleCtx.env}});
-        moduleCtx.env->parent = ctx.builtin;
-        moduleCtx.workingDir = ctx.workingDir;
-        ctx.env->declare(alias, {
-                             std::make_shared<Module>(moduleCtx.env, alias), -1
-                         });
-        return;
-    }
-
-    ctx.env->declare(alias, {std::make_shared<Module>(itr->second.env, alias), 0});
-}
 
 string stdlib::stringify(const RuntimeValue& value)
 {
@@ -586,7 +548,7 @@ string stdlib::stringify(const RuntimeValue& value)
     {
         if (value.asStructObjPtr()->hasMethod("stringify"))
         {
-            str.append(stringify(value.asStructObjPtr()->getMethod("stringify")->call({value}, 0)));
+            str.append(stringify(value.asStructObjPtr()->getMethod("stringify")->call({value})));
             return str;
         }
         str.append("{");
